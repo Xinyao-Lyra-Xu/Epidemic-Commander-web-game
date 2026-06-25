@@ -1,0 +1,2119 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>流行病指挥官 · Epidemic Commander</title>
+<script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.1/dist/chart.umd.min.js"></script>
+<style>
+  :root{
+    --bg:#0f1117; --panel:#171a23; --panel-2:#1f2430; --border:#2a3040;
+    --text:#e8ecf4; --muted:#8b93a7; --accent:#4f8cff;
+    --s:#4f8cff; --i:#ff5e6c; --r:#3ddc97; --d:#9aa0ad;
+    --warn:#ffae42; --good:#3ddc97; --bad:#ff5e6c;
+    --shadow:0 8px 30px rgba(0,0,0,.35);
+    --mono:ui-monospace,SFMono-Regular,Menlo,Consolas,"Liberation Mono",monospace;
+    --sans:system-ui,-apple-system,"Segoe UI",Roboto,"Helvetica Neue","PingFang SC","Microsoft YaHei",sans-serif;
+  }
+  html[data-theme="light"]{
+    --bg:#f4f6fb; --panel:#ffffff; --panel-2:#eef1f7; --border:#dce1ec;
+    --text:#1a1f2b; --muted:#5a6376; --shadow:0 8px 24px rgba(30,40,70,.10);
+  }
+  *{box-sizing:border-box;margin:0;padding:0}
+  body{background:var(--bg);color:var(--text);font-family:var(--sans);line-height:1.5;
+    transition:background .3s,color .3s;-webkit-font-smoothing:antialiased}
+  .wrap{max-width:1280px;margin:0 auto;padding:16px}
+  /* HEADER */
+  header{display:flex;align-items:center;gap:16px;flex-wrap:wrap;
+    background:var(--panel);border:1px solid var(--border);border-radius:14px;
+    padding:14px 18px;box-shadow:var(--shadow)}
+  header h1{font-size:20px;letter-spacing:.3px;white-space:nowrap}
+  header h1 .em{font-size:22px;margin-right:6px}
+  header .sub{color:var(--muted);font-size:12px;margin-top:2px}
+  .head-spacer{flex:1}
+  .ctrl-group{display:flex;align-items:center;gap:8px;flex-wrap:wrap}
+  select,button{font-family:var(--sans);cursor:pointer;color:var(--text)}
+  .selbox{background:var(--panel-2);border:1px solid var(--border);border-radius:9px;
+    padding:8px 10px;font-size:13px}
+  .toggle{display:inline-flex;align-items:center;gap:6px;background:var(--panel-2);
+    border:1px solid var(--border);border-radius:9px;padding:7px 11px;font-size:13px;
+    user-select:none;transition:.15s}
+  .toggle:hover{border-color:var(--accent)}
+  .lang-btn{font-weight:600;min-width:64px;justify-content:center}
+  /* LAYOUT */
+  .grid{display:grid;grid-template-columns:340px 1fr;gap:16px;margin-top:16px}
+  .panel{background:var(--panel);border:1px solid var(--border);border-radius:14px;
+    padding:16px;box-shadow:var(--shadow)}
+  .panel h2{font-size:13px;text-transform:uppercase;letter-spacing:1px;color:var(--muted);
+    margin-bottom:12px;font-weight:700}
+  /* METRIC CARDS */
+  .metrics{display:grid;grid-template-columns:1fr 1fr;gap:10px}
+  .metric{background:var(--panel-2);border:1px solid var(--border);border-radius:11px;padding:11px 12px}
+  .metric .label{font-size:11px;color:var(--muted);margin-bottom:4px}
+  .metric .val{font-family:var(--mono);font-size:22px;font-weight:700;line-height:1.1}
+  .metric .val small{font-size:12px;color:var(--muted);font-weight:400}
+  .metric.cases .val{color:var(--i)}
+  .metric.deaths .val{color:var(--bad)}
+  @keyframes flash{0%,100%{opacity:1}50%{opacity:.35}}
+  .metric.cases.alarm .val{animation:flash 1s infinite}
+  .metric.budget.low .val{color:var(--warn)}
+  /* R_eff */
+  .reff{margin-top:14px;background:var(--panel-2);border:1px solid var(--border);
+    border-radius:11px;padding:12px;position:relative}
+  .reff-top{display:flex;justify-content:space-between;align-items:baseline}
+  .reff-top .name{font-size:12px;color:var(--muted);cursor:help}
+  .reff-top .num{font-family:var(--mono);font-size:24px;font-weight:700}
+  .reff-bar{height:8px;border-radius:5px;margin-top:9px;overflow:hidden;
+    background:linear-gradient(90deg,var(--good) 0%,var(--warn) 50%,var(--bad) 100%)}
+  .reff-bar .knob{height:100%;width:2px;background:var(--text);transform:translateX(0)}
+  .reff-status{font-size:12px;margin-top:7px;font-weight:600}
+  /* INTERVENTIONS */
+  .iv-grid{display:grid;grid-template-columns:1fr 1fr;gap:9px}
+  .iv{background:var(--panel-2);border:1.5px solid var(--border);border-radius:11px;
+    padding:10px;cursor:pointer;transition:.15s;position:relative;min-height:84px}
+  .iv:hover{border-color:var(--accent);transform:translateY(-1px)}
+  .iv .iv-head{display:flex;align-items:center;gap:6px;font-size:13px;font-weight:600}
+  .iv .iv-head .ico{font-size:16px}
+  .iv .iv-desc{font-size:10.5px;color:var(--muted);margin:5px 0 6px;line-height:1.35}
+  .iv .iv-cost{font-family:var(--mono);font-size:11px;color:var(--accent);font-weight:600}
+  .iv .iv-tag{position:absolute;top:8px;right:8px;font-size:9px;color:var(--muted);
+    border:1px solid var(--border);border-radius:5px;padding:1px 5px}
+  .iv.active{border-color:var(--good);background:rgba(61,220,151,.08)}
+  .iv.active::after{content:"✓";position:absolute;top:7px;right:8px;color:var(--good);
+    font-weight:800;font-size:14px}
+  .iv.active .iv-tag{display:none}
+  .iv.used{border-color:var(--good);opacity:.7}
+  .iv.disabled{opacity:.4;cursor:not-allowed;filter:grayscale(.5)}
+  .iv.disabled:hover{transform:none;border-color:var(--border)}
+  /* tooltip */
+  .tip{position:relative}
+  .tip .tipbox{visibility:hidden;opacity:0;position:absolute;z-index:50;bottom:calc(100% + 8px);
+    left:50%;transform:translateX(-50%);width:240px;background:#0b0d13;color:#e8ecf4;
+    border:1px solid var(--border);border-radius:9px;padding:9px 11px;font-size:11px;
+    line-height:1.45;box-shadow:var(--shadow);transition:.15s;pointer-events:none}
+  .tip:hover .tipbox{visibility:visible;opacity:1}
+  /* ACTIONS */
+  .actions{display:flex;flex-direction:column;gap:8px;margin-top:14px}
+  .btn{border:1px solid var(--border);background:var(--panel-2);border-radius:10px;
+    padding:11px 14px;font-size:14px;font-weight:600;transition:.15s;display:flex;
+    align-items:center;justify-content:center;gap:7px}
+  .btn:hover{border-color:var(--accent)}
+  .btn:disabled{opacity:.4;cursor:not-allowed}
+  .btn.primary{background:var(--accent);border-color:var(--accent);color:#fff;font-size:15px;padding:13px}
+  .btn.primary:hover{filter:brightness(1.08)}
+  .btn-row{display:flex;gap:8px}
+  .btn-row .btn{flex:1}
+  .btn.danger{color:var(--bad)}
+  .btn.on{background:var(--good);border-color:var(--good);color:#04140d}
+  /* CHARTS */
+  .chart-wrap{position:relative;height:340px}
+  .chart-wrap.small{height:170px;margin-top:8px}
+  .timeline{height:8px;background:var(--panel-2);border-radius:5px;margin:14px 0 4px;overflow:hidden}
+  .timeline .fill{height:100%;background:linear-gradient(90deg,var(--accent),var(--i));
+    border-radius:5px;width:0%;transition:width .3s}
+  .timeline-lbl{display:flex;justify-content:space-between;font-size:11px;color:var(--muted)}
+  /* LOG */
+  .log{margin-top:16px}
+  .log-box{font-family:var(--mono);font-size:12px;background:var(--panel-2);
+    border:1px solid var(--border);border-radius:11px;padding:10px 12px;height:150px;
+    overflow-y:auto;display:flex;flex-direction:column}
+  .log-box .ln{padding:2px 0;border-bottom:1px dashed rgba(128,128,128,.12);white-space:pre-wrap}
+  .log-box .ln .day{color:var(--accent)}
+  .log-box .ln.warn{color:var(--warn)}
+  .log-box .ln.good{color:var(--good)}
+  .log-box .ln.bad{color:var(--bad)}
+  /* MODALS */
+  .overlay{position:fixed;inset:0;background:rgba(5,7,12,.72);display:none;
+    align-items:center;justify-content:center;z-index:100;padding:20px;backdrop-filter:blur(3px)}
+  .overlay.show{display:flex}
+  .modal{background:var(--panel);border:1px solid var(--border);border-radius:16px;
+    max-width:560px;width:100%;max-height:90vh;overflow-y:auto;box-shadow:var(--shadow);padding:26px}
+  .modal h2{font-size:22px;margin-bottom:4px;text-transform:none;letter-spacing:0;color:var(--text)}
+  .modal .rate-ico{font-size:48px;text-align:center;margin-bottom:6px}
+  .modal .score{font-family:var(--mono);font-size:56px;font-weight:800;text-align:center;
+    line-height:1;margin:6px 0}
+  .modal .score small{font-size:22px;color:var(--muted)}
+  .modal .rate-title{text-align:center;font-size:18px;font-weight:700;margin-bottom:14px}
+  .score-break{display:flex;gap:8px;margin:12px 0}
+  .score-break .sb{flex:1;background:var(--panel-2);border:1px solid var(--border);
+    border-radius:9px;padding:8px;text-align:center}
+  .score-break .sb .n{font-family:var(--mono);font-size:18px;font-weight:700}
+  .score-break .sb .l{font-size:10px;color:var(--muted)}
+  table.cmp{width:100%;border-collapse:collapse;font-size:13px;margin:12px 0}
+  table.cmp th,table.cmp td{padding:7px 9px;text-align:right;border-bottom:1px solid var(--border)}
+  table.cmp th:first-child,table.cmp td:first-child{text-align:left}
+  table.cmp thead th{color:var(--muted);font-size:11px;text-transform:uppercase}
+  .review{background:var(--panel-2);border-left:3px solid var(--accent);border-radius:8px;
+    padding:11px 13px;font-size:13px;line-height:1.55;margin:12px 0}
+  .modal-actions{display:flex;gap:8px;flex-wrap:wrap;margin-top:16px}
+  .modal-actions .btn{flex:1;min-width:120px}
+  .edu h3{font-size:15px;margin:16px 0 6px;color:var(--accent)}
+  .edu p{font-size:13px;color:var(--text);margin-bottom:6px}
+  .edu .eq{font-family:var(--mono);background:var(--panel-2);border:1px solid var(--border);
+    border-radius:8px;padding:10px;font-size:12px;margin:8px 0;white-space:pre-wrap}
+  .edu a{color:var(--accent)}
+  .close-x{float:right;font-size:24px;color:var(--muted);cursor:pointer;border:none;background:none;line-height:1}
+  /* RESPONSIVE */
+  @media(max-width:860px){
+    .grid{grid-template-columns:1fr}
+    .chart-wrap{height:280px}
+    header h1{font-size:17px}
+  }
+  @media(max-width:430px){
+    .wrap{padding:10px}
+    .metrics{grid-template-columns:1fr 1fr}
+    .iv-grid{grid-template-columns:1fr 1fr}
+    .modal{padding:18px}
+  }
+  /* SCENARIO BANNER */
+  .scenario-banner{display:none;align-items:center;gap:9px;margin-top:14px;
+    background:var(--panel);border:1px solid var(--border);border-left:3px solid var(--warn);
+    border-radius:11px;padding:10px 14px;box-shadow:var(--shadow)}
+  .scenario-banner.show{display:flex}
+  .scenario-banner .sc-ico{font-size:22px}
+  .scenario-banner .sc-name{font-weight:700;font-size:13px}
+  .scenario-banner .sc-desc{font-size:11.5px;color:var(--muted)}
+  /* ACHIEVEMENTS GRID (in modal) */
+  .ach-grid{display:grid;grid-template-columns:1fr;gap:9px;margin-top:6px}
+  .ach{display:flex;gap:11px;align-items:center;background:var(--panel-2);
+    border:1px solid var(--border);border-radius:11px;padding:11px 13px}
+  .ach.locked{opacity:.5;filter:grayscale(1)}
+  .ach .ach-ico{font-size:26px;flex-shrink:0}
+  .ach .ach-name{font-weight:700;font-size:14px}
+  .ach .ach-desc{font-size:11.5px;color:var(--muted)}
+  .ach .ach-done{margin-left:auto;color:var(--good);font-size:18px;font-weight:800}
+  .ach-progress{font-size:12px;color:var(--muted);margin-bottom:10px}
+  /* ACHIEVEMENT TOAST */
+  .toast-wrap{position:fixed;top:18px;right:18px;z-index:200;display:flex;
+    flex-direction:column;gap:10px;pointer-events:none}
+  .toast{display:flex;gap:11px;align-items:center;background:var(--panel);
+    border:1px solid var(--good);border-radius:12px;padding:12px 15px;box-shadow:var(--shadow);
+    min-width:240px;max-width:320px;animation:toastIn .35s ease;border-left:4px solid var(--good)}
+  @keyframes toastIn{from{transform:translateX(120%);opacity:0}to{transform:translateX(0);opacity:1}}
+  .toast.out{animation:toastOut .35s ease forwards}
+  @keyframes toastOut{to{transform:translateX(120%);opacity:0}}
+  .toast .t-ico{font-size:28px}
+  .toast .t-eyebrow{font-size:10px;color:var(--good);text-transform:uppercase;letter-spacing:1px;font-weight:700}
+  .toast .t-name{font-weight:700;font-size:14px}
+  .toast.event{border-color:var(--warn);border-left-color:var(--warn)}
+  .toast.event .t-eyebrow{color:var(--warn)}
+  .toast.bad{border-color:var(--bad);border-left-color:var(--bad)}
+  .toast.bad .t-eyebrow{color:var(--bad)}
+  .toast .t-body{font-size:11.5px;color:var(--muted);margin-top:2px;max-width:240px}
+
+  /* ===== 具身认知：交互物理感 Embodied interaction physics ===== */
+  .btn:active{transform:scale(.96)}
+  .iv:active{transform:scale(.96)}
+  @keyframes chartFlash{0%{filter:brightness(2.2)}100%{filter:brightness(1)}}
+  .chart-wrap.flash{animation:chartFlash .3s ease}
+  @keyframes urgentShake{0%,100%{transform:translateX(0)}20%{transform:translateX(-2px)}60%{transform:translateX(2px)}}
+  .btn.primary.urgent{background:var(--bad);border-color:var(--bad);animation:urgentShake .55s infinite}
+  .btn.primary.calm{background:var(--good);border-color:var(--good);color:#04140d}
+
+  /* ===== 前景理论：损失框架横幅 Loss-framing banner ===== */
+  .atrisk{margin-top:11px;background:var(--panel);border:1px solid var(--border);
+    border-left:3px solid var(--i);border-radius:11px;padding:9px 13px;display:flex;
+    justify-content:space-between;align-items:baseline}
+  .atrisk .l{font-size:11px;color:var(--muted)}
+  .atrisk .v{font-family:var(--mono);font-size:20px;font-weight:800;color:var(--i)}
+  /* 滚动死亡数字 rolling death digits */
+  .metric.deaths .val{transition:color .2s}
+  /* R_eff 阈值标线 threshold marker */
+  .reff-bar{position:relative;overflow:visible}
+  .reff-mark{position:absolute;top:-2px;bottom:-2px;left:33.33%;width:2px;
+    background:#fff;z-index:3;box-shadow:0 0 0 1px var(--bad)}
+  .reff-mark::after{content:'1.0';position:absolute;top:11px;left:-7px;font-size:9px;
+    color:var(--bad);font-family:var(--mono);font-weight:700}
+  .reff-bar .knob{z-index:4;box-shadow:0 0 4px rgba(0,0,0,.5)}
+  /* 预算进度条 budget bar */
+  .budget-bar{height:7px;border-radius:5px;margin-top:10px;background:var(--panel);
+    border:1px solid var(--border);overflow:hidden}
+  .budget-bar .fill{height:100%;width:100%;transition:width .35s,background .35s}
+
+  /* ===== 叙事：新闻滚动条 News ticker ===== */
+  .news-ticker{display:flex;align-items:center;gap:11px;background:var(--panel);
+    border:1px solid var(--border);border-left:3px solid var(--accent);border-radius:11px;
+    padding:10px 14px;margin-top:14px;box-shadow:var(--shadow);font-size:13px;min-height:42px}
+  .news-ticker .badge{font-size:11px;font-weight:700;color:var(--accent);white-space:nowrap}
+  .news-ticker .headline{color:var(--text);line-height:1.35}
+  @keyframes newsIn{from{opacity:0;transform:translateY(-5px)}to{opacity:1;transform:none}}
+  .news-ticker.flash{animation:newsIn .45s ease}
+
+  /* ===== 城市简介卡片 City intro card ===== */
+  .city-card{text-align:left}
+  .city-card .city-emoji{font-size:46px;text-align:center}
+  .city-card .city-name{font-size:24px;font-weight:800;text-align:center;margin-bottom:2px}
+  .city-card .city-row{display:flex;justify-content:space-between;font-size:13px;
+    padding:7px 0;border-bottom:1px solid var(--border)}
+  .city-card .city-row .k{color:var(--muted)}
+  .city-card .headline-box{background:var(--panel-2);border:1px solid var(--border);
+    border-left:3px solid var(--warn);border-radius:9px;padding:10px 12px;margin:14px 0;font-size:13px}
+  .city-card .headline-box .src{font-size:10px;color:var(--muted);margin-bottom:3px}
+
+  /* ===== 结算：反事实 & 方程 & 百分位 Settlement extras ===== */
+  .cf{background:var(--panel-2);border-left:3px solid var(--warn);border-radius:8px;
+    padding:11px 13px;font-size:13px;line-height:1.55;margin:10px 0}
+  .percentile{margin:12px 0}
+  .percentile .pbar{height:10px;border-radius:6px;background:var(--panel-2);
+    border:1px solid var(--border);overflow:hidden;margin-top:6px;position:relative}
+  .percentile .pbar .pfill{height:100%;background:linear-gradient(90deg,var(--good),var(--accent));transition:width .6s}
+  .percentile .ptxt{font-size:12px;color:var(--muted)}
+  .eq-toggle{cursor:pointer;color:var(--accent);font-size:12px;margin-top:8px;display:inline-block}
+  .ending-narr{font-style:italic;font-size:13.5px;line-height:1.6;margin:10px 0;color:var(--text)}
+
+  /* 沙盒模式隐藏元素 sandbox hides budget/score */
+  body.sandbox .hide-sandbox{display:none!important}
+  .mode-pill{font-size:10px;font-weight:700;padding:2px 7px;border-radius:6px;
+    background:var(--accent);color:#fff;margin-left:6px;vertical-align:middle}
+  .hidden{display:none!important}
+</style>
+</head>
+<body>
+<div class="wrap">
+
+  <!-- ============ HEADER ============ -->
+  <header>
+    <div>
+      <h1><span class="em">🦠</span><span data-i18n="title">流行病指挥官</span></h1>
+      <div class="sub" data-i18n="subtitle">用 SIR 模型在 365 天内控制疫情</div>
+    </div>
+    <div class="head-spacer"></div>
+    <div class="ctrl-group">
+      <select id="mode" class="selbox" title="">
+        <option value="campaign" selected data-i18n="mode_campaign">战役模式</option>
+        <option value="sandbox" data-i18n="mode_sandbox">沙盒模式</option>
+        <option value="zero" data-i18n="mode_zero">零干预挑战</option>
+      </select>
+      <select id="difficulty" class="selbox" title="">
+        <option value="easy" data-i18n="diff_easy">简单</option>
+        <option value="normal" selected data-i18n="diff_normal">普通</option>
+        <option value="hard" data-i18n="diff_hard">困难</option>
+      </select>
+      <select id="scenario" class="selbox" title="">
+        <option value="standard" selected data-i18n="sc_standard">标准情景</option>
+        <option value="delta" data-i18n="sc_delta">德尔塔变异株</option>
+        <option value="aging" data-i18n="sc_aging">老龄化城市</option>
+        <option value="hesitancy" data-i18n="sc_hesitancy">疫苗犹豫</option>
+      </select>
+      <div class="toggle" id="achToggle" title=""><span>🏆</span><span data-i18n="achv">成就</span></div>
+      <div class="toggle" id="dynToggle" title=""><span id="dyn-ico">⚙️</span><span data-i18n="dyndiff">动态难度</span></div>
+      <div class="toggle" id="soundToggle" title=""><span>🔊</span><span data-i18n="sound">音效</span></div>
+      <div class="toggle" id="themeToggle" title=""><span>🌙</span><span data-i18n="theme">主题</span></div>
+      <div class="toggle lang-btn" id="langToggle">EN / 中</div>
+    </div>
+  </header>
+
+  <!-- ============ SCENARIO BANNER ============ -->
+  <div class="scenario-banner" id="scenario-banner">
+    <span class="sc-ico" id="sc-banner-ico">🧬</span>
+    <div>
+      <div class="sc-name" id="sc-banner-name"></div>
+      <div class="sc-desc" id="sc-banner-desc"></div>
+    </div>
+  </div>
+
+  <!-- ============ NEWS TICKER ============ -->
+  <div class="news-ticker" id="news-ticker">
+    <span class="badge" id="news-badge">📰</span>
+    <span class="headline" id="news-headline"></span>
+  </div>
+
+  <!-- ============ MAIN GRID ============ -->
+  <div class="grid">
+
+    <!-- LEFT PANEL -->
+    <div>
+      <div class="panel">
+        <h2 data-i18n="key_metrics">关键指标</h2>
+        <div class="metrics">
+          <div class="metric" id="m-day">
+            <div class="label" data-i18n="m_day">当前天数</div>
+            <div class="val"><span id="v-day">0</span><small> / 365</small></div>
+          </div>
+          <div class="metric cases" id="m-cases">
+            <div class="label" data-i18n="m_cases">活跃病例</div>
+            <div class="val" id="v-cases">100</div>
+          </div>
+          <div class="metric deaths" id="m-deaths">
+            <div class="label" data-i18n="m_deaths">累计死亡</div>
+            <div class="val" id="v-deaths">0</div>
+          </div>
+          <div class="metric budget hide-sandbox" id="m-budget">
+            <div class="label" data-i18n="m_budget">剩余预算</div>
+            <div class="val" id="v-budget">¥1.0M</div>
+          </div>
+        </div>
+
+        <!-- 损失框架：仍处于危险中 loss-framed at-risk banner -->
+        <div class="atrisk">
+          <span class="l" data-i18n="atrisk_label">仍处于危险中</span>
+          <span class="v" id="v-atrisk">99,900</span>
+        </div>
+
+        <!-- 预算进度条 budget bar -->
+        <div class="budget-bar hide-sandbox"><div class="fill" id="budget-fill"></div></div>
+
+        <div class="reff">
+          <div class="reff-top">
+            <span class="name tip" data-i18n="reff_name">有效再生数 R_eff
+              <span class="tipbox" data-i18n="reff_tip">R_eff 表示当前每位感染者平均传染的人数。&lt;1 疫情收敛，&gt;1 疫情扩散。等于 β_当前 / γ_当前。</span>
+            </span>
+            <span class="num" id="v-reff">3.00</span>
+          </div>
+          <div class="reff-bar"><div class="reff-mark"></div><div class="knob" id="reff-knob"></div></div>
+          <div class="reff-status" id="reff-status"></div>
+        </div>
+      </div>
+
+      <div class="panel" style="margin-top:16px">
+        <h2 data-i18n="interventions">干预措施</h2>
+        <div class="iv-grid" id="iv-grid"></div>
+
+        <div class="actions">
+          <button class="btn primary" id="btn-sim7" data-i18n="sim7">▶ 模拟 7 天</button>
+          <div class="btn-row">
+            <button class="btn" id="btn-sim30" data-i18n="sim30">⏩ 快进 30 天</button>
+            <button class="btn" id="btn-peak" data-i18n="topeak">⏭ 快进至峰值</button>
+          </div>
+          <div class="btn-row">
+            <button class="btn" id="btn-auto" data-i18n="auto">🔁 自动模式</button>
+            <button class="btn danger" id="btn-reset" data-i18n="restart">↺ 重新开始</button>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- RIGHT PANEL -->
+    <div>
+      <div class="panel">
+        <h2 data-i18n="curve">流行病曲线（SIR）</h2>
+        <div class="chart-wrap"><canvas id="sirChart"></canvas></div>
+        <div class="timeline"><div class="fill" id="tl-fill"></div></div>
+        <div class="timeline-lbl"><span data-i18n="day0">第 0 天</span><span data-i18n="day365">第 365 天</span></div>
+      </div>
+      <div class="panel" style="margin-top:16px" id="daily-panel">
+        <h2 data-i18n="daily_new">每日新增感染</h2>
+        <div class="chart-wrap small"><canvas id="dailyChart"></canvas></div>
+      </div>
+    </div>
+  </div>
+
+  <!-- ============ LOG ============ -->
+  <div class="panel log">
+    <h2 data-i18n="log">事件日志</h2>
+    <div class="log-box" id="log-box"></div>
+  </div>
+
+</div>
+
+<!-- ============ RESULT MODAL ============ -->
+<div class="overlay" id="result-overlay">
+  <div class="modal">
+    <div class="rate-ico" id="r-ico">🏅</div>
+    <div class="rate-title" id="r-title"></div>
+    <div class="score"><span id="r-score">0</span><small> / 100</small></div>
+    <div class="score-break">
+      <div class="sb"><div class="n" id="r-sb-death">0</div><div class="l" data-i18n="sb_death">死亡分</div></div>
+      <div class="sb"><div class="n" id="r-sb-budget">0</div><div class="l" data-i18n="sb_budget">预算分</div></div>
+      <div class="sb"><div class="n" id="r-sb-speed">0</div><div class="l" data-i18n="sb_speed">速度分</div></div>
+    </div>
+    <table class="cmp">
+      <thead><tr>
+        <th data-i18n="cmp_metric">指标</th>
+        <th data-i18n="cmp_you">你的结果</th>
+        <th data-i18n="cmp_none">无干预</th>
+      </tr></thead>
+      <tbody id="r-cmp"></tbody>
+    </table>
+    <div class="ending-narr" id="r-ending"></div>
+    <div class="review" id="r-review"></div>
+    <!-- 反事实对比 counterfactual -->
+    <div class="cf" id="r-cf"></div>
+    <!-- 全球百分位 global percentile (socializer) -->
+    <div class="percentile hide-sandbox">
+      <div class="ptxt" id="r-pct-txt"></div>
+      <div class="pbar"><div class="pfill" id="r-pct-fill"></div></div>
+    </div>
+    <!-- 完整 SIR 方程（探索者）full equations on demand -->
+    <span class="eq-toggle" id="r-eq-toggle" data-i18n="show_eq">▸ 查看本局的 SIR 方程与参数</span>
+    <div class="eq hidden" id="r-eq"></div>
+    <div class="modal-actions">
+      <button class="btn" id="r-learn" data-i18n="learn_more">📖 了解更多</button>
+      <button class="btn" id="r-share" data-i18n="share">📤 分享卡片</button>
+      <button class="btn" id="r-again" data-i18n="play_again">🔄 再玩一次</button>
+    </div>
+  </div>
+</div>
+
+<!-- ============ CITY INTRO CARD ============ -->
+<div class="overlay" id="city-overlay">
+  <div class="modal city-card">
+    <div class="city-emoji" id="city-emoji">🏙</div>
+    <div class="city-name" id="city-name"></div>
+    <div class="ptxt" style="text-align:center;font-size:12px;color:var(--muted);margin-bottom:12px" id="city-tag"></div>
+    <div class="city-row"><span class="k" data-i18n="city_pop">人口</span><span id="city-pop">100,000</span></div>
+    <div class="city-row"><span class="k" data-i18n="city_trait">特点</span><span id="city-trait"></span></div>
+    <div class="city-row"><span class="k" data-i18n="city_params">初始 R₀</span><span id="city-r0"></span></div>
+    <div class="headline-box">
+      <div class="src" data-i18n="city_news_src">今日头条</div>
+      <div id="city-headline"></div>
+    </div>
+    <div class="modal-actions">
+      <button class="btn primary" id="city-start" data-i18n="city_start">接管这座城市 →</button>
+    </div>
+  </div>
+</div>
+
+<!-- ============ ACHIEVEMENTS MODAL ============ -->
+<div class="overlay" id="ach-overlay">
+  <div class="modal">
+    <button class="close-x" id="ach-close">×</button>
+    <h2 data-i18n="achv_title">🏆 成就</h2>
+    <div class="ach-progress" id="ach-progress"></div>
+    <div class="ach-grid" id="ach-grid"></div>
+    <div class="modal-actions">
+      <button class="btn" id="ach-reset" data-i18n="achv_reset">清空记录</button>
+      <button class="btn primary" id="ach-ok" data-i18n="got_it">知道了</button>
+    </div>
+  </div>
+</div>
+
+<!-- ============ ACHIEVEMENT TOASTS ============ -->
+<div class="toast-wrap" id="toast-wrap"></div>
+
+<!-- ============ TUTORIAL MODAL ============ -->
+<div class="overlay" id="edu-overlay">
+  <div class="modal edu">
+    <button class="close-x" id="edu-close">×</button>
+    <h2 data-i18n="edu_title">SIR 模型科普</h2>
+
+    <h3 data-i18n="edu_h1">1. SIR 模型</h3>
+    <p data-i18n="edu_p1">人群被分为三个仓室：易感者 S（可能被感染）、感染者 I（正在传播）、康复者 R（已免疫）。疾病在三者之间流动。</p>
+    <div class="eq">ΔS = -(β·S·I)/N
+ΔI =  (β·S·I)/N - γ·I
+ΔR =  γ·I·(1-CFR)
+ΔD =  γ·I·CFR</div>
+
+    <h3 data-i18n="edu_h2">2. R₀ 与 R_eff</h3>
+    <p data-i18n="edu_p2">R₀ = β/γ 是无干预时一个病例平均传染的人数。R_eff 是当前的实时值，随干预下降。当 R_eff &lt; 1 疫情开始收敛。群体免疫阈值 = 1 − 1/R₀。</p>
+
+    <h3 data-i18n="edu_h3">3. 干预时机的重要性</h3>
+    <p data-i18n="edu_p3">越早干预，峰值越低、累计死亡越少。指数增长意味着提前 7 天行动可能让峰值减半——这就是「拉平曲线」。</p>
+
+    <h3 data-i18n="edu_h4">4. 现实参照</h3>
+    <p data-i18n="edu_p4">各措施的效果数值参考了 COVID-19 与流感的公共卫生研究文献（口罩、社交距离、密接追踪、疫苗等的相对风险降低）。游戏做了简化，仅供科普。</p>
+
+    <h3 data-i18n="edu_h5">5. 推荐阅读</h3>
+    <p>
+      <a href="https://www.who.int/" target="_blank" rel="noopener">WHO</a> ·
+      <a href="https://www.cdc.gov/" target="_blank" rel="noopener">CDC</a> ·
+      <a href="https://en.wikipedia.org/wiki/Compartmental_models_in_epidemiology" target="_blank" rel="noopener" data-i18n="edu_wiki">SIR 模型（维基）</a>
+    </p>
+    <div class="modal-actions">
+      <button class="btn primary" id="edu-ok" data-i18n="got_it">知道了</button>
+    </div>
+  </div>
+</div>
+
+<script>
+/* ============================================================================
+   《流行病指挥官》Epidemic Commander
+   Clean / Onion Architecture  ·  整洁（洋葱）架构  ·  single file
+
+   依赖规则：外层依赖内层，内层永不依赖外层。
+   Dependency rule — outer layers depend on inner, never the reverse:
+
+     ┌──────────────────────────────────────────────────────┐
+     │ Presentation  表现层（DOM View + 事件绑定）            │  最外层
+     │ ┌──────────────────────────────────────────────────┐ │
+     │ │ Infrastructure  基础设施层                         │ │
+     │ │   (localStorage / WebAudio / Chart.js / RNG / i18n)│ │
+     │ │ ┌──────────────────────────────────────────────┐ │ │
+     │ │ │ Application  应用层（用例 / 游戏编排）          │ │ │
+     │ │ │ ┌──────────────────────────────────────────┐ │ │ │
+     │ │ │ │ Domain  领域层（纯 SIR 模型 / 计分 / 规则）│ │ │ │  最内层
+     │ │ │ └──────────────────────────────────────────┘ │ │ │
+     │ │ └──────────────────────────────────────────────┘ │ │
+     │ └──────────────────────────────────────────────────┘ │
+     └──────────────────────────────────────────────────────┘
+
+   - Domain：纯函数。只有 SIR 数学、计分、成就规则、随机事件规则。
+     不碰 DOM / localStorage / 音频 / i18n。随机性通过注入的 RNG 端口获得。
+     向外发出"语义化领域事件"（DomainEvent），不含任何本地化文案。
+   - Application：GameService 持有可变的游戏状态，通过注入的端口
+     （Presenter / Audio / Repo / Charts / Rng / Clock）编排领域逻辑。
+   - Infrastructure：实现端口、对接浏览器（存储 / 音频 / 图表 / 随机数 / 计时器 / i18n）。
+   - Presentation：DOM 视图（Presenter 实现）+ 事件绑定。
+   - Composition Root（文件末尾）：装配适配器、注入依赖、绑定 UI、启动游戏。
+   ============================================================================ */
+
+'use strict';
+
+/* ============================================================================
+   PORTS & TYPES  ·  端口与类型契约（JSDoc）
+   这些是各层之间的"接口"。应用层只依赖这些抽象端口，不依赖具体实现；
+   基础设施层（Audio / Repo / Charts …）与表现层（View）分别实现它们。
+   ============================================================================ */
+/**
+ * @typedef {Object} GameState  一局游戏的可变状态（领域实体，由 Domain 拥有与改写）
+ * @property {number} day                当前天数 0..365
+ * @property {'campaign'|'sandbox'|'zero'} mode  游戏模式
+ * @property {number} S                  易感人数 Susceptible
+ * @property {number} I                  现存感染 Infected
+ * @property {number} R                  累计康复 Recovered
+ * @property {number} D                  累计死亡 Deaths
+ * @property {number} baseBeta           本局基础传播率 β（难度×情景×城市 + 动态难度）
+ * @property {number} baseCfr            本局基础病死率 CFR
+ * @property {number} budget             剩余预算
+ * @property {number} startBudget        初始预算
+ * @property {string} scenario           情景 id（standard/delta/aging/hesitancy）
+ * @property {number} vaxFrac            疫苗一次性免疫的易感比例
+ * @property {{id:string,emoji:string,betaMul:number,cfrMul:number}} city  随机城市背景
+ * @property {Object.<string,boolean>} active    已激活的持续型措施
+ * @property {Object.<string,boolean>} used      已使用的一次性措施
+ * @property {Object.<string,boolean>} unlocked  已解锁的措施（如 precision）
+ * @property {Array<{S:number,I:number,R:number,D:number}>} history  每日仓室快照
+ * @property {number[]} daily            每日新增感染
+ * @property {number} peakDay            峰值出现的天数
+ * @property {number} peakI              峰值活跃病例
+ * @property {number} maxDaily           历史最高单日新增
+ * @property {boolean} everBelow1        是否曾把 R_eff 压到 1 以下
+ * @property {Array<{kind:string,until:number,betaMul?:number,betaAdd?:number,cfrMul?:number}>} events  进行中的临时随机事件
+ * @property {number} aidGiven           已发放的国际援助次数
+ * @property {number} deathMilestone     已播报的最高死亡里程碑
+ * @property {number} nextStory          下一条市民故事的天数
+ * @property {number} lastNewsDay        上次新闻的天数
+ * @property {boolean} panicTriggered    媒体恐慌是否已触发
+ * @property {Object.<string,boolean>} seenIds   已展示过的随机文案
+ * @property {boolean} over              本局是否结束
+ * @property {boolean} auto              是否处于自动模式
+ */
+/**
+ * @typedef {Object} DomainEvent  领域事件（语义化，不含任何本地化文案）
+ * @property {'event'|'news'|'story'|'milestone'|'turningpoint'|'gameover'} type
+ * @property {string} [kind]   当 type==='event' 时的事件种类（superspread/variant/overload/aid/panic）
+ * @property {''|'bad'} [tone] 当 type==='event' 时的情绪基调
+ * @property {number} [idx]    当 type==='story' 时的故事索引
+ * @property {number} [mark]   当 type==='milestone' 时的死亡里程碑数值
+ * @property {number} [day]    当 type==='milestone' 时的天数
+ */
+/**
+ * @typedef {Object} Rng  随机数端口（注入 Domain 以保持其可测试 / 确定性）
+ * @property {() => number} next            返回 [0,1) 的浮点数
+ * @property {(n:number) => number} int     返回 [0,n) 的整数
+ */
+/**
+ * @typedef {Object} Clock  计时器端口
+ * @property {(fn:Function, ms:number) => any} interval  返回句柄
+ * @property {(handle:any) => void} clear
+ */
+/**
+ * @typedef {Object} AudioPort  音频端口
+ * @property {(freq:number,dur:number,vol?:number,type?:string,attack?:number)=>void} beep
+ * @property {(kind:string)=>void} sfx       confirm/alarm/turningpoint/milestone/newday/tick
+ * @property {()=>void} deathToll
+ * @property {(v:boolean)=>void} setEnabled
+ * @property {boolean} enabled
+ * @property {()=>boolean} toggle
+ */
+/**
+ * @typedef {Object} RepoPort  持久化端口（localStorage 仓库）
+ * @property {()=>Object} loadMeta
+ * @property {(m:Object)=>void} saveMeta
+ * @property {()=>Object} loadAch
+ * @property {(a:Object)=>void} saveAch
+ * @property {()=>boolean} dynDiffOn
+ * @property {(v:boolean)=>void} setDynDiff
+ * @property {()=>(string|null)} theme
+ * @property {(v:string)=>void} setTheme
+ * @property {(total:number,sandbox:boolean,maxDaily:number,diffKey:string)=>void} saveScore
+ * @property {(state:GameState,sandbox:boolean)=>void} updateMetaAfterGame
+ */
+/**
+ * @typedef {Object} ChartsPort  图表端口（Chart.js 适配器）
+ * @property {(state:GameState)=>void} reset    销毁并重建两张图
+ * @property {(state:GameState)=>void} update   用最新数据刷新
+ * @property {()=>void} retheme                 切换主题颜色
+ * @property {()=>void} relabel                 切换语言时更新图例 / 坐标标题
+ */
+/**
+ * @typedef {Object} Presenter  表现层端口（GameService 通过它回调视图，从不直接碰 DOM）
+ * @property {(service:Object)=>void} bind                       注入应用服务并装配 DOM 事件
+ * @property {()=>{mode:string,difficultyKey:string,scenarioId:string}} readSettings
+ * @property {(state:GameState, lvl:number, flags:Object)=>void} startGame
+ * @property {(state:GameState)=>void} render
+ * @property {(key:string, cls?:string, vars?:Object)=>void} log
+ * @property {(state:GameState)=>void} logDayStatus
+ * @property {(state:GameState)=>void} showNews
+ * @property {(idx:number)=>void} logStory
+ * @property {(mark:number, day:number)=>void} logMilestone
+ * @property {(kind:string, tone:string)=>void} announceEvent
+ * @property {(res:Object)=>void} announceIntervention
+ * @property {(state:GameState)=>void} flashBudget
+ * @property {()=>void} flashChart
+ * @property {(id:string)=>void} showAchievement
+ * @property {(on:boolean)=>void} setAuto
+ * @property {(state:GameState, payload:Object)=>void} showResult
+ */
+
+/* ============================================================================
+   SHARED  ·  共享内核（数据资源 + 纯格式化工具，无业务逻辑）
+   ============================================================================ */
+
+// ---- 格式化工具 formatting helpers ----
+const Fmt = {
+  num(n){ return n.toLocaleString('en-US'); },
+  money(n){
+    if(n>=1000000) return '¥'+(n/1000000).toFixed(n%1000000?2:1)+'M';
+    if(n>=1000) return '¥'+(n/1000).toFixed(0)+'k';
+    return '¥'+Math.round(n);
+  }
+};
+
+// ---- 双语字典（数据资源） i18n catalog (pure data) ----
+const I18N = {
+  zh:{
+    title:'流行病指挥官', subtitle:'用 SIR 模型在 365 天内控制疫情',
+    diff_easy:'简单',diff_normal:'普通',diff_hard:'困难',
+    sound:'音效',theme:'主题',
+    key_metrics:'关键指标',m_day:'当前天数',m_cases:'活跃病例',m_deaths:'累计死亡',m_budget:'剩余预算',
+    reff_name:'有效再生数 R_eff', reff_tip:'R_eff 表示当前每位感染者平均传染的人数。<1 疫情收敛，>1 疫情扩散。等于 β_当前 / γ_当前 × 易感比例。',
+    reff_conv:'疫情收敛',reff_stable:'趋于稳定',reff_spread:'疫情扩散',
+    interventions:'干预措施', curve:'流行病曲线（SIR）', daily_new:'每日新增感染',
+    day0:'第 0 天', day365:'第 365 天', log:'事件日志', axis_day:'天数',
+    legend_S:'易感 S',legend_I:'感染 I',legend_R:'康复 R',legend_D:'死亡 D',
+    sim7:'▶ 模拟 7 天', sim30:'⏩ 快进 30 天', topeak:'⏭ 快进至峰值',
+    auto:'🔁 自动模式', restart:'↺ 重新开始',
+    tag_cont:'持续型', tag_once:'一次性',
+    // 措施名
+    iv_mask:'口罩令',iv_distancing:'社交距离',iv_quarantine:'重点隔离',iv_tracing:'密接追踪',
+    iv_school_close:'学校关闭',iv_vaccine:'疫苗接种',iv_treatment:'改善救治',iv_research:'病原研究',iv_precision:'精准隔离',
+    // 措施描述
+    iv_mask_desc:'传播率 ×0.80（−20%）',
+    iv_distancing_desc:'传播率 ×0.70（−30%）',
+    iv_quarantine_desc:'传播率 ×0.62（−38%）',
+    iv_tracing_desc:'传播 ×0.85，康复 ×1.25',
+    iv_school_close_desc:'传播率 ×0.84（−16%）',
+    iv_vaccine_desc:'20% 易感人口立即免疫',
+    iv_treatment_desc:'病死率降低 60%',
+    iv_research_desc:'解锁精准隔离，康复 ×1.15',
+    iv_precision_desc:'传播率 ×0.75（−25%）',
+    // 措施 tooltip
+    iv_mask_tip:'普及佩戴口罩可减少呼吸道飞沫传播，相对降低约 20% 传播率。成本低、可随时开关。',
+    iv_distancing_tip:'限制聚集、保持距离，显著降低接触频率，传播率约 −30%。',
+    iv_quarantine_tip:'对重点人群强制隔离，是降低传播最强的持续措施之一（−38%），但成本高。',
+    iv_tracing_tip:'密接追踪能更早发现并隔离病例，既降低传播又缩短有效感染期（γ 提升）。',
+    iv_school_close_tip:'关闭学校减少儿童与家庭间传播链，传播率约 −16%，社会成本较低。',
+    iv_vaccine_tip:'一次性将 20% 易感者直接移入康复（免疫）仓室，立刻压低可感染人群，对收敛极有效。',
+    iv_treatment_tip:'改善医疗救治可将病死率 CFR 降低 60%，减少死亡但不影响传播。',
+    iv_research_tip:'投入病原研究：解锁「精准隔离」措施，并将康复率 γ 提升 15%（缩短感染期）。',
+    iv_precision_tip:'基于研究成果的精准隔离，高性价比地把传播率降低 25%。',
+    // 日志
+    day_label:'第 {d} 天', day_n:'第 {d} 天',
+    iv_on:'已激活：{name}（消耗 {cost}）',
+    iv_off:'已停用并退款：{name}（退回 {cost}）',
+    log_vaccine:'疫苗接种完成，{n} 人已免疫',
+    log_treatment:'救治能力提升，病死率下降',
+    log_research:'病原研究完成，解锁「精准隔离」',
+    log_status:'活跃病例 {cases} 人 · 死亡 {deaths} 人 · R_eff = {reff}',
+    log_nofunds:'⚠ 预算不足，无法激活该措施',
+    log_outbreak:'检测到疫情爆发，{n} 人感染。R_eff = {reff}',
+    log_peak:'已快进至峰值：第 {d} 天，活跃病例 {n} 人',
+    log_end:'疫情结束（第 {d} 天）',
+    // 结算
+    rate_expert:'流行病学专家', rate_great:'出色的指挥官', rate_ok:'合格的公共卫生官',
+    rate_poor:'疫情应对不足', rate_crisis:'城市陷入危机',
+    sb_death:'死亡分',sb_budget:'预算分',sb_speed:'速度分',
+    cmp_metric:'指标',cmp_you:'你的结果',cmp_none:'无干预',
+    cmp_deaths:'累计死亡',cmp_recov:'累计康复',cmp_peakday:'峰值感染日',cmp_spent:'预算花费',
+    learn_more:'📖 了解更多',share:'📤 分享结果',play_again:'🔄 再玩一次',
+    // 点评
+    rev_lives:'你的干预相比放任不管挽救了约 {n} 条生命。',
+    rev_nolives:'本局未能比无干预情形减少死亡，下次试着更早出手。',
+    rev_noiv:'你几乎没有采取任何干预——疫情基本自由发展。',
+    rev_vaccine:'疫苗接种是收敛疫情的关键一步，时机很重要。',
+    rev_someiv:'你组合使用了 {n} 项措施，合理叠加能成倍降低传播。',
+    rev_overspend:'预算几乎耗尽，注意性价比更高的措施组合。',
+    rev_efficient:'你用很少的预算就控制住了疫情，非常高效！',
+    rev_notcontained:'365 天结束时疫情仍未完全平息。',
+    // 分享
+    share_text:'我在《流行病指挥官》获得 {score}/100 分（{title}），死亡 {deaths} 人。来挑战吧！',
+    copied:'结果已复制到剪贴板！', copy_manual:'复制下面的文字分享：',
+    // 科普
+    edu_title:'SIR 模型科普',
+    edu_h1:'1. SIR 模型', edu_p1:'人群被分为三个仓室：易感者 S（可能被感染）、感染者 I（正在传播）、康复者 R（已免疫）。疾病在三者之间流动。',
+    edu_h2:'2. R₀ 与 R_eff', edu_p2:'R₀ = β/γ 是无干预时一个病例平均传染的人数。R_eff 是当前实时值，随干预下降；当 R_eff < 1 疫情开始收敛。群体免疫阈值 = 1 − 1/R₀。',
+    edu_h3:'3. 干预时机的重要性', edu_p3:'越早干预，峰值越低、累计死亡越少。指数增长意味着提前 7 天行动可能让峰值减半——这就是「拉平曲线」。',
+    edu_h4:'4. 现实参照', edu_p4:'各措施的效果数值参考了 COVID-19 与流感的公共卫生研究文献（相对风险降低）。游戏做了简化，仅供科普。',
+    edu_h5:'5. 推荐阅读', edu_wiki:'SIR 模型（维基）', got_it:'知道了',
+    confirm_reset:'确定要重新开始吗？当前进度将丢失。',
+    // 情景模式
+    sc_standard:'标准情景', sc_delta:'德尔塔变异株', sc_aging:'老龄化城市', sc_hesitancy:'疫苗犹豫',
+    sc_delta_desc:'变异株传播力更强：β 提升约 50%，疫情来势更猛。',
+    sc_aging_desc:'人口老龄化：病死率 CFR 约为常态的 2.2 倍，每个病例更危险。',
+    sc_hesitancy_desc:'公众疫苗犹豫：疫苗接种仅能免疫 10% 易感人口（常态为 20%）。',
+    // 成就
+    achv:'成就', achv_title:'🏆 成就', achv_progress:'已解锁 {n} / {total}',
+    achv_reset:'清空记录', achv_reset_confirm:'确定清空所有成就记录？', achv_unlocked:'成就解锁',
+    ach_below1_name:'曲线压制者', ach_below1_desc:'首次把 R_eff 压到 1.0 以下',
+    ach_flatten_name:'拉平曲线', ach_flatten_desc:'峰值活跃病例控制在 5,000 以内',
+    ach_lowdeath_name:'生命守护者', ach_lowdeath_desc:'通关时累计死亡少于 200 人',
+    ach_frugal_name:'精打细算', ach_frugal_desc:'花费不到 30% 预算且得分 ≥ 75',
+    ach_expert_name:'满分指挥', ach_expert_desc:'单局得分达到 90 分以上',
+    ach_delta_name:'变种克星', ach_delta_desc:'在德尔塔情景下得分 ≥ 70',
+    ach_aging_name:'银发守护', ach_aging_desc:'在老龄化城市情景下得分 ≥ 70',
+    ach_persuade_name:'破除犹豫', ach_persuade_desc:'在疫苗犹豫情景下接种疫苗并得分 ≥ 70',
+    ach_speedrun_name:'雷霆控制', ach_speedrun_desc:'在第 120 天前彻底扑灭疫情',
+    ach_comeback_name:'力挽狂澜', ach_comeback_desc:'峰值超过 30,000 仍拿到 55 分以上',
+    ach_sandbox_name:'探索实验室', ach_sandbox_desc:'进入自由沙盒模式做一次实验',
+    ach_killer_name:'零干预见证者', ach_killer_desc:'完成一局「零干预挑战」，直面自然结局',
+    // 模式 / 损失框架
+    mode_campaign:'战役模式', mode_sandbox:'沙盒模式', mode_zero:'零干预挑战',
+    atrisk_label:'仍处于危险中',
+    // 城市简介
+    city_pop:'人口', city_trait:'特点', city_params:'初始 R₀', city_news_src:'今日头条', city_start:'接管这座城市 →',
+    city_tourist_name:'阳光湾', city_tourist_trait:'热门旅游城市，人流密集、流动性高', city_tourist_headline:'「黄金周客流创新高，医院出现不明肺炎病例」',
+    city_aging_name:'松鹤镇', city_aging_trait:'老龄化社区，65 岁以上占 28%，医疗资源紧张', city_aging_headline:'「养老院报告聚集性发热，家属忧心忡忡」',
+    city_port_name:'远洋港', city_port_trait:'高密度国际港口，货轮船员往来频繁', city_port_headline:'「入境货轮船员确诊，港口防疫拉响警报」',
+    city_tech_name:'新芯城', city_tech_trait:'年轻科技新城，居民防疫依从性高', city_tech_headline:'「科技园区发现首例感染，企业启动居家办公」',
+    city_rural_name:'禾丰县', city_rural_trait:'农业县，人口密度低但医疗薄弱', city_rural_headline:'「乡镇卫生院接诊不明发热，县城严阵以待」',
+    // 随机事件
+    ev_breaking:'突发',
+    ev_superspread_name:'超级传播事件', ev_superspread:'一场大型聚集导致当日新增感染激增至三倍！',
+    ev_variant_name:'变异株出现', ev_variant:'监测到传播力更强的变异株，未来两周 β 升高。',
+    ev_overload_name:'医疗挤兑', ev_overload:'单日新增过高，医院超负荷运转，病死率短期内上升。',
+    ev_aid_name:'国际援助', ev_aid:'死亡人数引发国际关注，你获得 ¥150,000 紧急援助预算。',
+    ev_panic_name:'媒体恐慌', ev_panic:'死亡数字登上头条，公众恐慌情绪蔓延，舆论压力骤增。',
+    // 动态新闻
+    news_early:'{city}日报：「不明肺炎扩散，市民抢购口罩，专家呼吁冷静」',
+    news_surge:'{city}日报：「确诊曲线陡升，活跃病例达 {I} 人，R_eff = {reff}」',
+    news_icu:'{city}日报：「ICU 告急，活跃病例 {I} 人，医院走廊加满床位」',
+    news_mid:'{city}日报：「疫情持续，累计死亡 {D} 人，市民等待拐点」',
+    news_decline:'{city}日报：「连续多日新增下降，专家：拐点或已到来」',
+    news_calm:'{city}日报：「R_eff 降至 {reff}，疫情趋于平稳，城市重现生机」',
+    // 市民故事（叙事传输的情感连接点）
+    story_0:'「李阿姨今年 72 岁，她的社区今天报告了第一例感染。她不确定是否还该出门买菜。」',
+    story_1:'「夜班护士小陈已经连续工作 16 小时，她说：只要还有床位，我就不能走。」',
+    story_2:'「面馆老板老王把店关了。‘少做一天生意，就少一分风险’，他在卷帘门上贴了张纸条。」',
+    story_3:'「读小学的朵朵已经在家上网课三周了，她最想念的是操场和同桌。」',
+    story_4:'「出租车司机老张在后视镜上挂了瓶消毒液，每送完一位乘客都要喷一喷。」',
+    story_5:'「社区志愿者把菜送到独居老人门口，敲两下门就退到三米外等着。」',
+    story_6:'「一对新人取消了婚礼。‘等疫情过去，我们补办’，他们在朋友圈写道。」',
+    story_7:'「药店门口排起长队，店员反复提醒大家保持一米间距。」',
+    story_8:'「确诊康复的程序员回到工位，同事们既高兴又下意识地后退了半步。」',
+    story_9:'「环卫工人老周说，街上人少了，垃圾里的口罩却多了。」',
+    story_10:'「高三学生在客厅里贴满了倒计时，高考会不会延期，没人知道。」',
+    story_11:'「快递站点堆满包裹，小哥们戴着两层口罩，汗水浸透了后背。」',
+    story_12:'「广场舞的音乐停了，张大爷每天还是按时下楼，只是远远地站着。」',
+    story_13:'「方舱医院里，有人在病床间打起了太极，引来一片掌声。」',
+    story_14:'「核酸检测点的医生在防护服背后写上名字和‘加油’两个字。」',
+    story_15:'「一位母亲隔着玻璃给住院的孩子比心，孩子笑着也比了一个。」',
+    // 死亡里程碑
+    death_mark:'第 {d} 天 · 累计死亡 {n} 人',
+    death_mark_small:'其中包括医护人员和社区里熟悉的面孔。',
+    death_mark_big:'每一个数字背后，都是一个再也无法团圆的家庭。',
+    // 结算扩展
+    show_eq:'▸ 查看本局的 SIR 方程与参数', eq_hide:'▾ 收起方程',
+    pct_text:'你的死亡人数优于全球 {pct}% 的指挥官',
+    cf_earlier:'反事实推演：若你在第 7 天就激活隔离措施，预计可减少约 {pct}% 的死亡。',
+    cf_good:'反事实推演：你的干预时机把握得很好——比无干预情形少损失了 {n} 条生命。',
+    cf_late:'反事实推演：你的关键干预来得偏晚，错过了压低峰值的窗口期。',
+    ending_high:'第 {day} 天，{city}宣告疫情解除。这座城市永远失去了 {x} 位居民，但因你的决策，更多家庭得以在餐桌前重新团聚。',
+    ending_low:'医院的走廊里摆满了病床。{city}的这场疫情，本可以是另一种结局——数据显示，若更早果断行动，死亡人数本可大幅减少。',
+    ending_sandbox:'沙盒实验结束。这里没有分数，只有规律本身——你刚刚见证了参数如何塑造一条曲线。',
+    sandbox_note:'🧪 沙盒模式：预算无限、不计分，尽情实验 SIR 参数与干预组合。',
+    zero_note:'☠️ 零干预挑战：本局禁用一切干预，见证疫情的自然轨迹。',
+    dyn_harder:'⚙ 上一局太轻松，本局疫情传播力已自动加码。',
+    dyn_easier:'💡 连续两局损失惨重——你随时可以切换到「简单」难度（不强制）。',
+    dyndiff:'动态难度',
+    dyn_on_tip:'动态难度：已开启。系统会根据你的表现微调下一局的传播力。点击关闭。',
+    dyn_off_tip:'动态难度：已关闭。每局难度只由你选择的难度/情景决定。点击开启。',
+    dyn_on_msg:'已开启动态难度——系统将随你的表现自动调节。',
+    dyn_off_msg:'已关闭动态难度——难度将保持固定。',
+  },
+  en:{
+    title:'Epidemic Commander', subtitle:'Control the outbreak in 365 days with the SIR model',
+    diff_easy:'Easy',diff_normal:'Normal',diff_hard:'Hard',
+    sound:'Sound',theme:'Theme',
+    key_metrics:'Key Metrics',m_day:'Current Day',m_cases:'Active Cases',m_deaths:'Total Deaths',m_budget:'Budget Left',
+    reff_name:'Effective R (R_eff)', reff_tip:'R_eff is the average number of people each case infects right now. <1 the outbreak shrinks, >1 it grows. Equals β_now / γ_now × susceptible share.',
+    reff_conv:'Contracting',reff_stable:'Stabilizing',reff_spread:'Spreading',
+    interventions:'Interventions', curve:'Epidemic Curve (SIR)', daily_new:'Daily New Infections',
+    day0:'Day 0', day365:'Day 365', log:'Event Log', axis_day:'Day',
+    legend_S:'Susceptible',legend_I:'Infected',legend_R:'Recovered',legend_D:'Deaths',
+    sim7:'▶ Simulate 7 days', sim30:'⏩ Skip 30 days', topeak:'⏭ Skip to peak',
+    auto:'🔁 Auto mode', restart:'↺ Restart',
+    tag_cont:'Ongoing', tag_once:'One-time',
+    iv_mask:'Mask Mandate',iv_distancing:'Social Distancing',iv_quarantine:'Targeted Quarantine',iv_tracing:'Contact Tracing',
+    iv_school_close:'School Closures',iv_vaccine:'Vaccination',iv_treatment:'Better Treatment',iv_research:'Pathogen Research',iv_precision:'Precision Isolation',
+    iv_mask_desc:'Transmission ×0.80 (−20%)',
+    iv_distancing_desc:'Transmission ×0.70 (−30%)',
+    iv_quarantine_desc:'Transmission ×0.62 (−38%)',
+    iv_tracing_desc:'Spread ×0.85, recovery ×1.25',
+    iv_school_close_desc:'Transmission ×0.84 (−16%)',
+    iv_vaccine_desc:'Immunize 20% of susceptibles',
+    iv_treatment_desc:'Cut fatality rate by 60%',
+    iv_research_desc:'Unlock Precision, recovery ×1.15',
+    iv_precision_desc:'Transmission ×0.75 (−25%)',
+    iv_mask_tip:'Widespread masking reduces respiratory droplet spread, cutting transmission by ~20%. Cheap and toggleable anytime.',
+    iv_distancing_tip:'Limiting gatherings and keeping distance sharply lowers contact rates, ~−30% transmission.',
+    iv_quarantine_tip:'Mandatory isolation of key groups is one of the strongest ongoing measures (−38%), but expensive.',
+    iv_tracing_tip:'Contact tracing finds and isolates cases earlier — lowers spread AND shortens the infectious period (higher γ).',
+    iv_school_close_tip:'Closing schools cuts child-to-household transmission chains, ~−16%, at relatively low social cost.',
+    iv_vaccine_tip:'One-time: moves 20% of susceptibles straight into Recovered (immune), instantly shrinking the at-risk pool.',
+    iv_treatment_tip:'Better medical care cuts the case fatality rate (CFR) by 60% — fewer deaths, no effect on spread.',
+    iv_research_tip:'Invest in research: unlocks Precision Isolation and raises recovery rate γ by 15% (shorter infectious period).',
+    iv_precision_tip:'Research-driven targeted isolation cuts transmission by 25% cost-effectively.',
+    day_label:'Day {d}', day_n:'Day {d}',
+    iv_on:'Activated: {name} (−{cost})',
+    iv_off:'Deactivated & refunded: {name} (+{cost})',
+    log_vaccine:'Vaccination done, {n} people now immune',
+    log_treatment:'Treatment capacity improved, fatality rate down',
+    log_research:'Research complete — Precision Isolation unlocked',
+    log_status:'Active {cases} · Deaths {deaths} · R_eff = {reff}',
+    log_nofunds:'⚠ Not enough budget to activate this measure',
+    log_outbreak:'Outbreak detected, {n} infected. R_eff = {reff}',
+    log_peak:'Skipped to peak: Day {d}, {n} active cases',
+    log_end:'Outbreak over (Day {d})',
+    rate_expert:'Epidemiology Expert', rate_great:'Outstanding Commander', rate_ok:'Competent Health Officer',
+    rate_poor:'Inadequate Response', rate_crisis:'City in Crisis',
+    sb_death:'Deaths',sb_budget:'Budget',sb_speed:'Speed',
+    cmp_metric:'Metric',cmp_you:'You',cmp_none:'No Action',
+    cmp_deaths:'Total Deaths',cmp_recov:'Total Recovered',cmp_peakday:'Peak Day',cmp_spent:'Budget Spent',
+    learn_more:'📖 Learn More',share:'📤 Share',play_again:'🔄 Play Again',
+    rev_lives:'Your interventions saved about {n} lives compared with doing nothing.',
+    rev_nolives:'This run did not reduce deaths versus no action — try acting earlier next time.',
+    rev_noiv:'You took almost no action — the outbreak ran nearly free.',
+    rev_vaccine:'Vaccination was a key step toward containment; timing matters a lot.',
+    rev_someiv:'You combined {n} measures — stacking them multiplies the reduction in spread.',
+    rev_overspend:'Budget was nearly exhausted — look for more cost-effective combinations.',
+    rev_efficient:'You contained the outbreak on a tiny budget — very efficient!',
+    rev_notcontained:'The outbreak was still not fully settled by day 365.',
+    share_text:'I scored {score}/100 ({title}) in Epidemic Commander with {deaths} deaths. Can you beat it?',
+    copied:'Result copied to clipboard!', copy_manual:'Copy the text below to share:',
+    edu_title:'About the SIR Model',
+    edu_h1:'1. The SIR Model', edu_p1:'The population is split into three compartments: Susceptible S (can be infected), Infected I (currently spreading), and Recovered R (immune). Disease flows between them.',
+    edu_h2:'2. R₀ vs R_eff', edu_p2:'R₀ = β/γ is how many people one case infects with no interventions. R_eff is the live value, falling as you intervene; when R_eff < 1 the outbreak shrinks. Herd-immunity threshold = 1 − 1/R₀.',
+    edu_h3:'3. Why Timing Matters', edu_p3:'The earlier you act, the lower the peak and the fewer deaths. Exponential growth means acting 7 days sooner can halve the peak — that is "flattening the curve".',
+    edu_h4:'4. Real-World Basis', edu_p4:'Effect sizes draw on COVID-19 and influenza public-health literature (relative risk reductions). The game is simplified, for education only.',
+    edu_h5:'5. Further Reading', edu_wiki:'SIR model (Wikipedia)', got_it:'Got it',
+    confirm_reset:'Restart the game? Current progress will be lost.',
+    // Scenarios
+    sc_standard:'Standard', sc_delta:'Delta Variant', sc_aging:'Aging City', sc_hesitancy:'Vaccine Hesitancy',
+    sc_delta_desc:'A more transmissible variant: β is ~50% higher, so the outbreak hits harder.',
+    sc_aging_desc:'An aging population: the fatality rate (CFR) is ~2.2× normal — every case is deadlier.',
+    sc_hesitancy_desc:'Public vaccine hesitancy: vaccination only immunizes 10% of susceptibles (vs 20% normally).',
+    // Achievements
+    achv:'Achievements', achv_title:'🏆 Achievements', achv_progress:'Unlocked {n} / {total}',
+    achv_reset:'Reset', achv_reset_confirm:'Clear all achievement records?', achv_unlocked:'Achievement Unlocked',
+    ach_below1_name:'Curve Crusher', ach_below1_desc:'Push R_eff below 1.0 for the first time',
+    ach_flatten_name:'Flatten the Curve', ach_flatten_desc:'Keep peak active cases under 5,000',
+    ach_lowdeath_name:'Life Guardian', ach_lowdeath_desc:'Finish with fewer than 200 total deaths',
+    ach_frugal_name:'Budget Hawk', ach_frugal_desc:'Spend under 30% of budget and score ≥ 75',
+    ach_expert_name:'Top Marks', ach_expert_desc:'Score 90 or above in a single run',
+    ach_delta_name:'Variant Slayer', ach_delta_desc:'Score ≥ 70 in the Delta scenario',
+    ach_aging_name:'Silver Shield', ach_aging_desc:'Score ≥ 70 in the Aging City scenario',
+    ach_persuade_name:'Persuader', ach_persuade_desc:'Vaccinate and score ≥ 70 under Vaccine Hesitancy',
+    ach_speedrun_name:'Rapid Response', ach_speedrun_desc:'Fully extinguish the outbreak before day 120',
+    ach_comeback_name:'Against the Odds', ach_comeback_desc:'Score ≥ 55 despite a peak above 30,000',
+    ach_sandbox_name:'The Lab', ach_sandbox_desc:'Run an experiment in free Sandbox mode',
+    ach_killer_name:'Zero-Intervention Witness', ach_killer_desc:'Complete a Zero-Intervention run and face nature',
+    // Modes / loss framing
+    mode_campaign:'Campaign', mode_sandbox:'Sandbox', mode_zero:'Zero-Intervention',
+    atrisk_label:'Still at risk',
+    // City intro
+    city_pop:'Population', city_trait:'Profile', city_params:'Starting R₀', city_news_src:'Today\'s Headline', city_start:'Take command →',
+    city_tourist_name:'Sunny Bay', city_tourist_trait:'Popular tourist city — dense crowds, high mobility', city_tourist_headline:'"Holiday crowds hit record highs as hospitals report unexplained pneumonia"',
+    city_aging_name:'Pinecrest', city_aging_trait:'Aging community — 28% over 65, strained healthcare', city_aging_headline:'"Care home reports cluster of fevers; families anxious"',
+    city_port_name:'Deepwater Port', city_port_trait:'High-density international port, constant crew turnover', city_port_headline:'"Inbound crew tests positive; port raises its alert level"',
+    city_tech_name:'Neochip City', city_tech_trait:'Young tech hub — residents highly compliant', city_tech_headline:'"First case found in the tech park; firms switch to remote work"',
+    city_rural_name:'Greenfield County', city_rural_trait:'Farming county — low density but thin healthcare', city_rural_headline:'"Township clinic sees unexplained fevers; county braces"',
+    // Random events
+    ev_breaking:'Breaking',
+    ev_superspread_name:'Super-spreader Event', ev_superspread:'A large gathering tripled today\'s new infections!',
+    ev_variant_name:'New Variant', ev_variant:'A more transmissible variant detected — β rises for the next two weeks.',
+    ev_overload_name:'Hospital Overload', ev_overload:'Daily cases too high; hospitals overwhelmed, fatality rate spikes short-term.',
+    ev_aid_name:'International Aid', ev_aid:'The death toll drew global attention — you receive ¥150,000 in emergency funding.',
+    ev_panic_name:'Media Panic', ev_panic:'The death toll makes headlines; public panic spreads and pressure mounts.',
+    // Dynamic news
+    news_early:'{city} Daily: "Mystery pneumonia spreads; residents rush for masks as experts urge calm"',
+    news_surge:'{city} Daily: "Case curve soars — {I} active cases, R_eff = {reff}"',
+    news_icu:'{city} Daily: "ICUs full — {I} active cases, beds line the hallways"',
+    news_mid:'{city} Daily: "Outbreak drags on; {D} dead as the city waits for a turning point"',
+    news_decline:'{city} Daily: "New cases fall for days — experts say the peak may be behind us"',
+    news_calm:'{city} Daily: "R_eff down to {reff}; outbreak stabilizes and the city stirs back to life"',
+    // Citizen stories
+    story_0:'"Auntie Li, 72, learns her neighborhood logged its first case today. She isn\'t sure she should still go out for groceries."',
+    story_1:'"Night-shift nurse Chen has worked 16 hours straight. \'As long as there are beds,\' she says, \'I can\'t leave.\'"',
+    story_2:'"The noodle-shop owner shuttered his store. \'One less day of business, one less risk,\' reads the note on his rolling gate."',
+    story_3:'"Little Duoduo has been in online class for three weeks. What she misses most is the playground and her deskmate."',
+    story_4:'"A cab driver hangs a bottle of sanitizer from his mirror, spraying after every passenger."',
+    story_5:'"A volunteer leaves groceries at an elderly resident\'s door, knocks twice, then steps back three meters to wait."',
+    story_6:'"A couple cancels their wedding. \'We\'ll hold it once this is over,\' they post online."',
+    story_7:'"A line forms outside the pharmacy; a clerk keeps reminding everyone to stay a meter apart."',
+    story_8:'"A recovered programmer returns to his desk; colleagues are glad — and instinctively step back half a pace."',
+    story_9:'"A street cleaner notes there are fewer people out, but far more masks in the trash."',
+    story_10:'"A senior covers the living room with countdown notes. Will the exam be postponed? No one knows."',
+    story_11:'"The delivery depot overflows with parcels; couriers wear double masks, backs soaked with sweat."',
+    story_12:'"The square-dance music has stopped, yet Grandpa Zhang still comes down on time — just standing far apart."',
+    story_13:'"In the field hospital, someone does tai chi between the beds, drawing a round of applause."',
+    story_14:'"A doctor writes their name and \'stay strong\' on the back of their hazmat suit at the testing site."',
+    story_15:'"A mother makes a heart through the glass to her hospitalized child, who smiles and makes one back."',
+    // Death milestones
+    death_mark:'Day {d} · {n} total deaths',
+    death_mark_small:'Among them, healthcare workers and familiar faces from the neighborhood.',
+    death_mark_big:'Behind every number is a family that can never be whole again.',
+    // Settlement extras
+    show_eq:'▸ Show this run\'s SIR equations & parameters', eq_hide:'▾ Hide equations',
+    pct_text:'Your death toll beats {pct}% of commanders worldwide',
+    cf_earlier:'Counterfactual: had you activated isolation by day 7, you could have cut deaths by ~{pct}%.',
+    cf_good:'Counterfactual: your timing was strong — {n} more lives saved than doing nothing.',
+    cf_late:'Counterfactual: your key measures came late, missing the window to flatten the peak.',
+    ending_high:'On day {day}, {city} declared the outbreak over. The city lost {x} residents forever — but thanks to your decisions, far more families gathered again at the dinner table.',
+    ending_low:'Beds line the hospital corridors. {city}\'s outbreak could have ended differently — the data shows that acting sooner and harder would have saved many lives.',
+    ending_sandbox:'Sandbox experiment complete. No score here — just the dynamics themselves. You just watched parameters shape a curve.',
+    sandbox_note:'🧪 Sandbox: unlimited budget, no scoring — experiment freely with SIR parameters and interventions.',
+    zero_note:'☠️ Zero-Intervention Challenge: all measures disabled — witness the natural trajectory of the outbreak.',
+    dyn_harder:'⚙ Last run was too easy — this outbreak\'s transmissibility has been bumped up automatically.',
+    dyn_easier:'💡 Two rough runs in a row — you can switch to Easy anytime (not forced).',
+    dyndiff:'Adaptive',
+    dyn_on_tip:'Adaptive difficulty: ON. The game nudges next run\'s transmissibility based on your performance. Click to turn off.',
+    dyn_off_tip:'Adaptive difficulty: OFF. Each run is set only by your chosen difficulty/scenario. Click to turn on.',
+    dyn_on_msg:'Adaptive difficulty ON — the game will auto-tune to your performance.',
+    dyn_off_msg:'Adaptive difficulty OFF — difficulty stays fixed.',
+  }
+};
+
+
+/* ============================================================================
+   DOMAIN  ·  领域层（纯逻辑：SIR 模型、计分、成就规则、随机事件规则）
+   无任何 DOM / 存储 / 音频 / i18n 依赖；随机性通过注入的 rng 端口获得。
+   ============================================================================ */
+const Domain = (function(){
+  const N = 100000, I0 = 100, GAMMA = 0.10, MAX_DAYS = 365;
+
+  const DIFF = {
+    easy:   { beta:0.25, cfr:0.005, budget:1500000 },
+    normal: { beta:0.30, cfr:0.008, budget:1000000 },
+    hard:   { beta:0.38, cfr:0.012, budget:700000  },
+  };
+  // 情景修正（叠加在难度之上）scenario modifiers
+  const SCENARIOS = {
+    standard:  { ico:'🏙️', betaMul:1.0, cfrMul:1.0, vaxFrac:0.20 },
+    delta:     { ico:'🧬', betaMul:1.5, cfrMul:1.0, vaxFrac:0.20 },
+    aging:     { ico:'👵', betaMul:1.0, cfrMul:2.2, vaxFrac:0.20 },
+    hesitancy: { ico:'🚫', betaMul:1.0, cfrMul:1.0, vaxFrac:0.10 },
+  };
+  // 干预措施（tier = 渐进解锁层级）interventions
+  const INTERVENTIONS = [
+    { id:'mask',        type:'cont', cost:80000,  ico:'😷', betaMul:0.80, tier:0 },
+    { id:'distancing',  type:'cont', cost:140000, ico:'↔️', betaMul:0.70, tier:0 },
+    { id:'school_close',type:'cont', cost:120000, ico:'🏫', betaMul:0.84, tier:1 },
+    { id:'quarantine',  type:'cont', cost:280000, ico:'🚧', betaMul:0.62, tier:1 },
+    { id:'tracing',     type:'cont', cost:160000, ico:'🔍', betaMul:0.85, gammaMul:1.25, tier:1 },
+    { id:'vaccine',     type:'once', cost:230000, ico:'💉', tier:1 },
+    { id:'treatment',   type:'once', cost:190000, ico:'🩺', cfrMul:0.40, tier:1 },
+    { id:'research',    type:'once', cost:100000, ico:'🔬', gammaMul:1.15, unlock:'precision', tier:1 },
+    { id:'precision',   type:'cont', cost:90000,  ico:'🎯', betaMul:0.75, locked:true, tier:1 },
+  ];
+  // 随机城市背景 random city backgrounds
+  const CITIES = [
+    { id:'tourist', emoji:'🏖', betaMul:1.15, cfrMul:1.00 },
+    { id:'aging',   emoji:'👵', betaMul:0.95, cfrMul:1.80 },
+    { id:'port',    emoji:'⚓', betaMul:1.25, cfrMul:1.00 },
+    { id:'tech',    emoji:'💻', betaMul:0.85, cfrMul:0.90 },
+    { id:'rural',   emoji:'🌾', betaMul:0.80, cfrMul:1.10 },
+  ];
+  const STORY_COUNT = 16;
+  const DEATH_MARKS = [100,250,500,1000,2000,3500,5000,8000];
+
+  // cond(ctx) 返回 true 即解锁；ctx = {state, score, base}
+  const ACHIEVEMENTS = [
+    { id:'below1',   ico:'📉', cond:ctx=>ctx.state.everBelow1 },
+    { id:'flatten',  ico:'〰️', cond:ctx=>ctx.state.peakI < 5000 },
+    { id:'lowdeath', ico:'🕊️', cond:ctx=>ctx.state.D < 200 },
+    { id:'frugal',   ico:'💰', cond:ctx=>ctx.score>=75 && (ctx.state.startBudget-ctx.state.budget)/ctx.state.startBudget < 0.30 },
+    { id:'expert',   ico:'🎓', cond:ctx=>ctx.score>=90 },
+    { id:'delta',    ico:'🧬', cond:ctx=>ctx.state.scenario==='delta' && ctx.score>=70 },
+    { id:'aging',    ico:'👵', cond:ctx=>ctx.state.scenario==='aging' && ctx.score>=70 },
+    { id:'persuade', ico:'💉', cond:ctx=>ctx.state.scenario==='hesitancy' && ctx.state.used['vaccine'] && ctx.score>=70 },
+    { id:'speedrun', ico:'⚡', cond:ctx=>ctx.state.I<1 && ctx.state.day<120 },
+    { id:'comeback', ico:'💪', cond:ctx=>ctx.state.peakI>30000 && ctx.score>=55 },
+    { id:'sandbox',  ico:'🧪', cond:()=>false },
+    { id:'killer',   ico:'☠️', cond:ctx=>ctx.state.mode==='zero' && (ctx.state.day>=MAX_DAYS || ctx.state.I<1) },
+  ];
+
+  // ---- 实体工厂：创建一局新游戏的状态 entity factory ----
+  /**
+   * @param {{mode:string, diff:{beta:number,cfr:number,budget:number}, scenario:string, dynBeta:number, rng:Rng}} cfg
+   * @returns {GameState}
+   */
+  function createState({ mode, diff, scenario, dynBeta, rng }){
+    const sc = SCENARIOS[scenario];
+    const city = (mode==='sandbox') ? CITIES[3] : CITIES[rng.int(CITIES.length)];
+    const baseBeta = (diff.beta * sc.betaMul * city.betaMul) + dynBeta;
+    const baseCfr  = diff.cfr * sc.cfrMul * city.cfrMul;
+    const budget   = mode==='sandbox' ? 9.9e9 : diff.budget;
+    return {
+      day:0, mode,
+      S:N - I0, I:I0, R:0, D:0,
+      baseBeta, baseCfr,
+      budget, startBudget:budget,
+      scenario, vaxFrac:sc.vaxFrac, city,
+      active:{}, used:{}, unlocked:{},
+      history:[{S:N-I0,I:I0,R:0,D:0}],
+      daily:[I0],
+      peakDay:0, peakI:I0, maxDaily:I0,
+      everBelow1:false,
+      events:[], aidGiven:0, deathMilestone:0,
+      nextStory:7+rng.int(5), lastNewsDay:0, panicTriggered:false,
+      seenIds:{}, over:false, auto:false,
+    };
+  }
+
+  // ---- 当前生效参数 / R_eff ----
+  function activeContCount(s){
+    return INTERVENTIONS.filter(iv=>iv.type==='cont' && s.active[iv.id]).length;
+  }
+  function currentParams(s){
+    let beta = s.baseBeta, gamma = GAMMA, cfr = s.baseCfr;
+    for(const iv of INTERVENTIONS){
+      const on = (iv.type==='cont' && s.active[iv.id]) || (iv.type==='once' && s.used[iv.id]);
+      if(!on) continue;
+      if(iv.betaMul)  beta  *= iv.betaMul;
+      if(iv.gammaMul) gamma *= iv.gammaMul;
+      if(iv.cfrMul)   cfr   *= iv.cfrMul;
+    }
+    if(activeContCount(s)>=3) beta *= 1.15;           // 民众抵制：依从性下降
+    for(const e of (s.events||[])){                   // 临时随机事件
+      if(e.betaMul) beta *= e.betaMul;
+      if(e.betaAdd) beta += e.betaAdd;
+      if(e.cfrMul)  cfr  *= e.cfrMul;
+    }
+    return { beta, gamma, cfr };
+  }
+  function reff(s){
+    const { beta, gamma } = currentParams(s);
+    return (beta/gamma) * (s.S / N);
+  }
+
+  // ---- 随机事件（变比强化）。给定 rng 即纯函数。返回 {superMul, fired:[{kind,tone}]} ----
+  function activeEvent(s, kind){ return (s.events||[]).some(e=>e.kind===kind); }
+  function rollEvents(s, rng){
+    let superMul = 1; const fired = [];
+    const I = s.I, D = s.D;
+    if(I > 200 && rng.next() < 0.025){
+      superMul = 3; fired.push({ kind:'superspread', tone:'bad' });
+    }
+    if(s.day>40 && I>1000 && !activeEvent(s,'variant') && rng.next()<0.04){
+      s.events.push({ kind:'variant', until:s.day+14, betaAdd:0.08 });
+      fired.push({ kind:'variant', tone:'bad' });
+    }
+    const lastNew = s.daily[s.daily.length-1] || 0;
+    if(lastNew>3000 && !activeEvent(s,'overload')){
+      s.events.push({ kind:'overload', until:s.day+6, cfrMul:1.5 });
+      fired.push({ kind:'overload', tone:'bad' });
+    }
+    const aidTier = Math.floor(D/800);
+    if(s.mode!=='sandbox' && aidTier > s.aidGiven){
+      s.aidGiven = aidTier; s.budget += 150000;
+      fired.push({ kind:'aid', tone:'' });
+    }
+    if(D>500 && !s.panicTriggered){
+      s.panicTriggered = true; fired.push({ kind:'panic', tone:'bad' });
+    }
+    return { superMul, fired };
+  }
+
+  // ---- 死亡里程碑判定（纯） ----
+  function nextDeathMark(s){
+    const D = Math.round(s.D);
+    for(const m of DEATH_MARKS){ if(D>=m && s.deathMilestone<m) return m; }
+    return null;
+  }
+  // ---- 动态新闻语义键选择（纯，文案由表现层翻译） ----
+  function newsTrend(s){
+    const h=s.history, n=h.length;
+    if(n<8) return 0;
+    const a=h[n-8].I||1, b=h[n-1].I;
+    return (b-a)/a;
+  }
+  function newsKey(s){
+    const I=Math.round(s.I), re=reff(s), trend=newsTrend(s);
+    if(s.day<=14) return 'news_early';
+    if(trend<-0.05 && re<1) return 'news_decline';
+    if(re>2) return 'news_surge';
+    if(I>20000) return 'news_icu';
+    if(re<1) return 'news_calm';
+    return 'news_mid';
+  }
+  function pickStoryIdx(s, rng){
+    let idx, guard=0;
+    do{ idx = rng.int(STORY_COUNT); guard++; }
+    while(s.seenIds['story'+idx] && guard<30);
+    s.seenIds['story'+idx]=true;
+    return idx;
+  }
+
+  // ---- 推进一天（纯，给定 rng）。改写状态并返回语义化领域事件数组 ----
+  /**
+   * @param {GameState} s
+   * @param {Rng} rng
+   * @returns {DomainEvent[]}
+   */
+  function step(s, rng){
+    const out = [];
+    s.day++;
+    s.events = (s.events||[]).filter(e=>e.until > s.day);   // 清理过期事件
+    const roll = rollEvents(s, rng);
+    roll.fired.forEach(f=>out.push({ type:'event', kind:f.kind, tone:f.tone }));
+
+    const { beta, gamma, cfr } = currentParams(s);
+    const { S, I } = s;
+    let newInf = (beta * S * I) / N;
+    newInf *= roll.superMul;
+    newInf = Math.min(newInf, S);
+
+    const dI = newInf - gamma*I;
+    const dR = gamma*I*(1-cfr);
+    const dD = gamma*I*cfr;
+    s.S = Math.max(0, S - newInf);
+    s.I = Math.max(0, s.I + dI);
+    s.R = s.R + dR;
+    s.D = s.D + dD;
+
+    s.history.push({ S:s.S, I:s.I, R:s.R, D:s.D });
+    s.daily.push(newInf);
+    if(s.I > s.peakI){ s.peakI = s.I; s.peakDay = s.day; }
+    if(newInf > s.maxDaily) s.maxDaily = newInf;
+
+    if(s.day - s.lastNewsDay >= 7){ out.push({ type:'news' }); s.lastNewsDay = s.day; }
+    if(s.day >= s.nextStory){ out.push({ type:'story', idx:pickStoryIdx(s,rng) }); s.nextStory = s.day + 6 + rng.int(6); }
+    const mark = nextDeathMark(s);
+    if(mark){ s.deathMilestone = mark; out.push({ type:'milestone', mark, day:s.day }); }
+    if(!s.everBelow1 && s.I>=1 && reff(s)<1){ s.everBelow1 = true; out.push({ type:'turningpoint' }); }
+    if(s.day>=MAX_DAYS || s.I < 1){ out.push({ type:'gameover' }); }
+    return out;
+  }
+
+  // ---- 干预（纯）。返回描述结果的对象，副作用（日志/音效/渲染）由应用层处理 ----
+  function applyOnce(s, iv){
+    if(iv.id==='vaccine'){
+      const immun = s.S * s.vaxFrac;
+      s.S -= immun; s.R += immun;
+      s.history[s.history.length-1] = { S:s.S, I:s.I, R:s.R, D:s.D };
+      return { type:'vaccine', immun };
+    }
+    if(iv.id==='treatment') return { type:'treatment' };
+    if(iv.id==='research'){ s.unlocked.precision = true; return { type:'research' }; }
+    return { type:'none' };
+  }
+  function applyIntervention(s, id){
+    if(s.over || s.mode==='zero') return { kind:'blocked' };
+    const iv = INTERVENTIONS.find(x=>x.id===id);
+    if(iv.locked && !s.unlocked[id]) return { kind:'blocked' };
+    if(iv.type==='cont'){
+      if(s.active[id]){ s.active[id]=false; s.budget += iv.cost; return { kind:'off', iv }; }
+      if(s.budget < iv.cost) return { kind:'nofunds' };
+      s.active[id]=true; s.budget -= iv.cost; return { kind:'on', iv };
+    } else {
+      if(s.used[id]) return { kind:'blocked' };
+      if(s.budget < iv.cost) return { kind:'nofunds' };
+      s.budget -= iv.cost; s.used[id]=true;
+      return { kind:'once', iv, eff:applyOnce(s, iv) };
+    }
+  }
+
+  // ---- 前向模拟 / 反事实推演 / 计分（纯） ----
+  function projectRun(s, betaHook){
+    let S=N-I0,I=I0,R=0,D=0;
+    const gamma=GAMMA, cfr=s.baseCfr;
+    for(let d=0; d<MAX_DAYS && I>=1; d++){
+      const beta = s.baseBeta * (betaHook ? betaHook(d) : 1);
+      const inf=Math.min(S,(beta*S*I)/N);
+      S=Math.max(0,S-inf);
+      const ni=inf-gamma*I;
+      R+=gamma*I*(1-cfr); D+=gamma*I*cfr; I=Math.max(0,I+ni);
+    }
+    return { D, R };
+  }
+  function baselineRun(s){ return projectRun(s, null); }
+  function earlyIsolationRun(s){ return projectRun(s, d=> d>=7 ? 0.62 : 1); }
+
+  function score(s, base){
+    const sandbox = s.mode==='sandbox';
+    const baseD = Math.max(1, base.D);
+    const deathScore  = Math.max(0, 60*(1 - s.D/baseD));
+    const budgetScore = sandbox ? 0 : 25*(s.budget/s.startBudget);
+    const speedScore  = Math.max(0, 15 - Math.floor(s.day/20));
+    const total = sandbox ? 0 : Math.max(0, Math.min(100, Math.round(deathScore+budgetScore+speedScore)));
+    return { sandbox, deathScore, budgetScore, speedScore, total };
+  }
+  function rating(total, sandbox){
+    if(sandbox)      return { ico:'🧪', key:'mode_sandbox' };
+    if(total>=90)    return { ico:'🏅', key:'rate_expert' };
+    if(total>=75)    return { ico:'⭐⭐⭐', key:'rate_great' };
+    if(total>=55)    return { ico:'⭐⭐', key:'rate_ok' };
+    if(total>=30)    return { ico:'⭐', key:'rate_poor' };
+    return { ico:'💀', key:'rate_crisis' };
+  }
+  // 玩家是否采取过任何干预（反事实判断用）
+  function tookAnyAction(s){
+    return INTERVENTIONS.some(iv=>(iv.type==='cont'&&s.active[iv.id])||(iv.type==='once'&&s.used[iv.id]));
+  }
+  function evaluateAchievements(ctx){
+    const ids=[];
+    for(const a of ACHIEVEMENTS){ try{ if(a.cond(ctx)) ids.push(a.id); }catch(e){} }
+    return ids;
+  }
+
+  return {
+    N, I0, GAMMA, MAX_DAYS, DIFF, SCENARIOS, INTERVENTIONS, CITIES, STORY_COUNT, DEATH_MARKS, ACHIEVEMENTS,
+    createState, currentParams, reff, activeContCount, step, rollEvents,
+    applyIntervention, projectRun, baselineRun, earlyIsolationRun,
+    score, rating, newsKey, pickStoryIdx, evaluateAchievements, tookAnyAction,
+  };
+})();
+
+
+/* ============================================================================
+   INFRASTRUCTURE  ·  基础设施层（实现端口，对接浏览器）
+   ============================================================================ */
+
+// ---- i18n 服务 ----
+const I18n = (function(){
+  let lang = (typeof localStorage!=='undefined' && localStorage.getItem('ec_lang')) || 'zh';
+  function t(key, vars){
+    let s = (I18N[lang] && I18N[lang][key]) || I18N.zh[key] || key;
+    if(vars) for(const k in vars) s = s.replaceAll('{'+k+'}', vars[k]);
+    return s;
+  }
+  return {
+    t,
+    get lang(){ return lang; },
+    setLang(l){ lang=l; try{ localStorage.setItem('ec_lang', l); }catch(e){} },
+    toggle(){ this.setLang(lang==='zh'?'en':'zh'); },
+    ivName(id){ return t('iv_'+id); },
+  };
+})();
+
+// ---- RNG 端口 ----
+const Rng = { next:()=>Math.random(), int:n=>Math.floor(Math.random()*n) };
+
+// ---- Clock 端口（计时器） ----
+const Clock = { interval:(fn,ms)=>setInterval(fn,ms), clear:h=>clearInterval(h) };
+
+// ---- 音频适配器（Web Audio） ----
+const Audio = (function(){
+  let on = true, ctx = null;
+  function beep(freq, dur, vol, type, attack){
+    if(!on) return;
+    try{
+      ctx = ctx || new (window.AudioContext||window.webkitAudioContext)();
+      const t0=ctx.currentTime, peak=vol||0.05, atk=attack||0.004;
+      const o=ctx.createOscillator(), g=ctx.createGain();
+      o.frequency.value=freq; o.type=type||'sine';
+      g.gain.setValueAtTime(0.0001, t0);
+      g.gain.exponentialRampToValueAtTime(peak, t0+atk);
+      g.gain.exponentialRampToValueAtTime(0.0001, t0+dur/1000);
+      o.connect(g); g.connect(ctx.destination);
+      o.start(t0); o.stop(t0+dur/1000);
+    }catch(e){}
+  }
+  // 死亡里程碑专用：克制、低沉、缓慢淡出的哀悼音
+  function deathToll(){
+    if(!on) return;
+    beep(132, 1300, 0.030, 'sine', 0.10);
+    setTimeout(()=>beep(99, 1500, 0.024, 'sine', 0.12), 140);
+  }
+  function sfx(kind){
+    switch(kind){
+      case 'confirm':     beep(440,90); break;
+      case 'alarm':       beep(240,140); break;
+      case 'turningpoint':beep(740,80); setTimeout(()=>beep(990,120),90); break;
+      case 'milestone':   deathToll(); break;
+      case 'newday':      beep(560,40); break;
+      case 'tick':        beep(520,60); break;
+      default:            beep(520,60);
+    }
+  }
+  return {
+    beep, sfx, deathToll,
+    setEnabled(v){ on=v; }, get enabled(){ return on; }, toggle(){ on=!on; return on; },
+  };
+})();
+
+// ---- 存储适配器（localStorage 仓库） ----
+const Repo = (function(){
+  function get(k, d){ try{ return JSON.parse(localStorage.getItem(k) || d); }catch(e){ return JSON.parse(d); } }
+  function set(k, v){ try{ localStorage.setItem(k, JSON.stringify(v)); }catch(e){} }
+  return {
+    loadMeta(){ return get('ec_meta','{}'); },
+    saveMeta(m){ set('ec_meta', m); },
+    loadAch(){ return get('ec_ach','{}'); },
+    saveAch(a){ set('ec_ach', a); },
+    dynDiffOn(){ try{ return (localStorage.getItem('ec_dyndiff')||'on')==='on'; }catch(e){ return true; } },
+    setDynDiff(v){ try{ localStorage.setItem('ec_dyndiff', v?'on':'off'); }catch(e){} },
+    theme(){ try{ return localStorage.getItem('ec_theme'); }catch(e){ return null; } },
+    setTheme(v){ try{ localStorage.setItem('ec_theme', v); }catch(e){} },
+    // 排行榜 + 杀手型「最高单日新增」
+    saveScore(total, sandbox, maxDaily, diffKey){
+      try{
+        if(!sandbox){
+          const arr=get('ec_scores','[]');
+          arr.push({ s:total, diff:diffKey, t:Date.now() });
+          arr.sort((a,b)=>b.s-a.s);
+          set('ec_scores', arr.slice(0,10));
+        }
+        const prevMax = parseFloat(localStorage.getItem('ec_maxdaily')||'0');
+        if(maxDaily > prevMax) localStorage.setItem('ec_maxdaily', String(Math.round(maxDaily)));
+      }catch(e){}
+    },
+    // 记录本局结果，驱动动态难度与渐进解锁
+    updateMetaAfterGame(state, sandbox){
+      const m = this.loadMeta();
+      if(!sandbox && state.mode==='campaign'){
+        m.completions = (m.completions||0) + 1;
+        const day30Imax = Math.max(...state.history.slice(0,31).map(h=>h.I));
+        m.dynBeta = m.dynBeta || 0;
+        if(day30Imax < 5000) m.dynBeta = Math.min(0.15, m.dynBeta + 0.05);
+        else m.dynBeta = Math.max(0, m.dynBeta - 0.025);
+        const deaths = Math.round(state.D);
+        m.highStreak = deaths>2000 ? (m.highStreak||0)+1 : 0;
+      }
+      this.saveMeta(m);
+    },
+  };
+})();
+
+// ---- 图表适配器（Chart.js） ----
+function createCharts(){
+  const t = I18n.t;
+  const cssVar = v => getComputedStyle(document.documentElement).getPropertyValue(v).trim();
+  const gridColor = () => cssVar('--border');
+  const tickColor = () => cssVar('--muted');
+  let sir=null, daily=null;
+
+  function ds(label,color,data){
+    return { label, data, borderColor:color, backgroundColor:color+'22',
+      borderWidth:2, pointRadius:0, tension:.25, fill:false };
+  }
+  function barColor(v){ const r=Math.min(1,v/6000); return `hsl(${(1-r)*120},75%,55%)`; }
+  function opts(isLine){
+    return {
+      responsive:true, maintainAspectRatio:false, animation:{duration:300},
+      interaction:{mode:'index',intersect:false},
+      plugins:{
+        legend:{ display:isLine, labels:{color:cssVar('--text'),usePointStyle:true,boxWidth:8,font:{size:11}} },
+        tooltip:{ callbacks:{ label:c=>` ${c.dataset.label}: ${Fmt.num(Math.round(c.parsed.y))}` } }
+      },
+      scales:{
+        x:{ grid:{color:gridColor()}, ticks:{color:tickColor(),maxTicksLimit:8,font:{size:10}},
+            title:{display:true,text:t('axis_day'),color:tickColor(),font:{size:10}} },
+        y:{ grid:{color:gridColor()}, ticks:{color:tickColor(),font:{size:10},
+            callback:v=> v>=1000? (v/1000)+'k': v } }
+      }
+    };
+  }
+  function reset(state){
+    if(sir){ sir.destroy(); daily.destroy(); sir=null; }
+    const labels = state.history.map((_,i)=>i);
+    sir = new Chart(document.getElementById('sirChart'),{
+      type:'line',
+      data:{ labels, datasets:[
+        ds(t('legend_S'), cssVar('--s'), state.history.map(h=>h.S)),
+        ds(t('legend_I'), cssVar('--i'), state.history.map(h=>h.I)),
+        ds(t('legend_R'), cssVar('--r'), state.history.map(h=>h.R)),
+        ds(t('legend_D'), cssVar('--d'), state.history.map(h=>h.D)),
+      ]},
+      options:opts(true)
+    });
+    daily = new Chart(document.getElementById('dailyChart'),{
+      type:'bar',
+      data:{ labels, datasets:[{ label:t('daily_new'), data:state.daily,
+        backgroundColor:state.daily.map(barColor), borderWidth:0, borderRadius:2 }]},
+      options:opts(false)
+    });
+  }
+  function update(state){
+    if(!sir) return;
+    const labels = state.history.map((_,i)=>i);
+    sir.data.labels = labels;
+    sir.data.datasets[0].data = state.history.map(h=>h.S);
+    sir.data.datasets[1].data = state.history.map(h=>h.I);
+    sir.data.datasets[2].data = state.history.map(h=>h.R);
+    sir.data.datasets[3].data = state.history.map(h=>h.D);
+    sir.update();
+    daily.data.labels = labels;
+    daily.data.datasets[0].data = state.daily;
+    daily.data.datasets[0].backgroundColor = state.daily.map(barColor);
+    daily.update();
+  }
+  function retheme(){
+    [sir,daily].forEach(c=>{
+      if(!c) return;
+      c.options.scales.x.grid.color = gridColor();
+      c.options.scales.y.grid.color = gridColor();
+      c.options.scales.x.ticks.color = tickColor();
+      c.options.scales.y.ticks.color = tickColor();
+      c.options.scales.x.title.color = tickColor();
+      if(c.options.plugins.legend.labels) c.options.plugins.legend.labels.color = cssVar('--text');
+      c.update();
+    });
+  }
+  function relabel(){
+    if(!sir) return;
+    sir.data.datasets[0].label=t('legend_S');
+    sir.data.datasets[1].label=t('legend_I');
+    sir.data.datasets[2].label=t('legend_R');
+    sir.data.datasets[3].label=t('legend_D');
+    sir.options.scales.x.title.text=t('axis_day');
+    sir.update();
+    daily.options.scales.x.title.text=t('axis_day');
+    daily.update();
+  }
+  return { reset, update, retheme, relabel };
+}
+
+
+/* ============================================================================
+   APPLICATION  ·  应用层（用例 / 游戏编排）
+   持有可变游戏状态；通过注入端口调度领域逻辑，把领域事件分发给表现/音频/存储。
+   ============================================================================ */
+
+// 渐进解锁层级（应用策略，读取 Repo 端口）
+function unlockLevel(){
+  const m = Repo.loadMeta();
+  if((m.completions||0) >= 2) return 2;
+  if((m.completions||0) >= 1 || Repo.loadAch().below1) return 1;
+  return 0;
+}
+
+/**
+ * 应用层服务工厂。持有可变 GameState，编排 Domain，并把领域事件分发给注入的端口。
+ * @param {{repo:RepoPort, view:Presenter, audio:AudioPort, charts:ChartsPort, rng:Rng, clock:Clock}} ports
+ * @returns {{getState:()=>GameState, newGame:Function, simulateDays:Function, skipToPeak:Function, toggleAuto:Function, toggleIntervention:Function, unlockLevel:Function}}
+ */
+function createGameService(ports){
+  const { repo, view, audio, charts, rng, clock } = ports;
+  let state = null;
+  let autoHandle = null;
+
+  function getState(){ return state; }
+
+  // 解锁成就（持久化 + 提示 + 音效）
+  function unlock(id){
+    const owned = repo.loadAch();
+    if(owned[id]) return;
+    owned[id] = Date.now();
+    repo.saveAch(owned);
+    view.showAchievement(id);
+    audio.beep(990,120);
+  }
+
+  // 分发一天产生的领域事件
+  function dispatch(events){
+    for(const ev of events){
+      switch(ev.type){
+        case 'event':
+          view.announceEvent(ev.kind, ev.tone);
+          audio.sfx(ev.tone==='bad' ? 'alarm' : 'confirm');
+          if(ev.kind==='overload') audio.sfx('milestone');
+          break;
+        case 'news':        view.showNews(state); break;
+        case 'story':       view.logStory(ev.idx); break;
+        case 'milestone':   view.logMilestone(ev.mark, ev.day); audio.sfx('milestone'); break;
+        case 'turningpoint':unlock('below1'); audio.sfx('turningpoint'); break;
+        case 'gameover':    endGame(); break;
+      }
+    }
+  }
+
+  function stopAuto(){
+    if(autoHandle){ clock.clear(autoHandle); autoHandle=null; }
+    if(state) state.auto=false;
+    view.setAuto(false);
+  }
+
+  // ===== 用例 use cases =====
+  function newGame(){
+    stopAuto();
+    const lvl = unlockLevel();
+    const meta = repo.loadMeta();
+    const sel = view.readSettings();
+    const mode = sel.mode;
+    const scenario = (lvl>=2) ? sel.scenarioId : 'standard';
+    const dynOn = repo.dynDiffOn();
+    const dynBeta = (mode==='campaign' && dynOn) ? (meta.dynBeta||0) : 0;
+    state = Domain.createState({ mode, diff:Domain.DIFF[sel.difficultyKey], scenario, dynBeta, rng });
+    if(mode==='sandbox') unlock('sandbox');
+    charts.reset(state);
+    view.startGame(state, lvl, { dynOn, meta });
+  }
+
+  function simulateDays(n){
+    if(!state || state.over) return;
+    for(let k=0; k<n && !state.over; k++) dispatch(Domain.step(state, rng));
+    audio.sfx('tick');
+    view.render(state); charts.update(state); view.logDayStatus(state);
+  }
+
+  function skipToPeak(){
+    if(!state || state.over) return;
+    let guard=0;
+    while(!state.over && guard<Domain.MAX_DAYS){
+      const before=state.I;
+      dispatch(Domain.step(state, rng));
+      guard++;
+      if(state.I < before && state.day>3) break;
+    }
+    view.render(state); charts.update(state);
+    view.log('log_peak','',{ d:state.peakDay, n:Fmt.num(Math.round(state.peakI)) });
+  }
+
+  function toggleAuto(){
+    if(!state || state.over) return;
+    state.auto = !state.auto;
+    view.setAuto(state.auto);
+    if(state.auto){
+      autoHandle = clock.interval(()=>{
+        if(state.over){ stopAuto(); return; }
+        dispatch(Domain.step(state, rng));
+        view.render(state); charts.update(state);
+      }, 500);
+    } else { stopAuto(); }
+  }
+
+  function toggleIntervention(id){
+    if(!state) return;
+    const res = Domain.applyIntervention(state, id);
+    if(res.kind==='blocked') return;
+    if(res.kind==='nofunds'){ view.flashBudget(state); audio.beep(200,120); return; }
+    view.announceIntervention(res);
+    if(res.kind==='once' && res.eff.type==='vaccine') charts.update(state);
+    audio.sfx('confirm');
+    view.flashChart();
+    view.render(state);
+  }
+
+  function endGame(){
+    if(state.over) return;
+    state.over=true; state.auto=false; stopAuto();
+    const sandbox = state.mode==='sandbox';
+    const base = Domain.baselineRun(state);
+    const baseD = Math.max(1, base.D);
+    const sc = Domain.score(state, base);
+    const rate = Domain.rating(sc.total, sandbox);
+    const lives = Math.round(base.D - state.D);
+    const earlyD = Domain.earlyIsolationRun(state).D;
+    const potentialPct = Math.max(0, Math.round((1 - earlyD/baseD)*100));
+
+    repo.saveScore(sc.total, sandbox, state.maxDaily, view.readSettings().difficultyKey);
+    Domain.evaluateAchievements({ state, score:sc.total, base }).forEach(unlock);
+    if(state.mode==='zero') unlock('killer');
+    repo.updateMetaAfterGame(state, sandbox);
+
+    audio.beep(sc.total>=75 && !sandbox ? 880 : 300, 300);
+    view.showResult(state, { sc, rate, base, lives, potentialPct });
+    view.render(state);
+  }
+
+  return { getState, newGame, simulateDays, skipToPeak, toggleAuto, toggleIntervention, unlockLevel };
+}
+
+
+/* ============================================================================
+   PRESENTATION  ·  表现层（DOM 视图 = Presenter 实现 + 事件绑定）
+   ============================================================================ */
+function createView(deps){
+  const { charts, audio, repo } = deps;
+  const t = I18n.t;
+  const el = id => document.getElementById(id);
+  let svc = null;          // 由 bind() 注入的应用服务
+  let cur = null;          // 当前游戏状态引用（供无参回调如 applyLang 使用）
+
+  /* ---- 日志 ---- */
+  function addLine(html, cls){
+    const box = el('log-box');
+    const ln = document.createElement('div');
+    ln.className = 'ln' + (cls?' '+cls:'');
+    ln.innerHTML = `<span class="day">[${t('day_label',{d:(cur?cur.day:0)})}]</span> ${html}`;
+    box.appendChild(ln);
+    while(box.children.length>40) box.removeChild(box.firstChild);
+    box.scrollTop = box.scrollHeight;
+  }
+  function log(key, cls, vars){ addLine(t(key, vars), cls); }
+  function logRaw(html, cls){ addLine(html, cls); }
+  function logDayStatus(state){
+    const re = Domain.reff(state);
+    const arrow = re<1?'▼':(re<=1.5?'→':'▲');
+    addLine(t('log_status',{
+      cases:Fmt.num(Math.round(state.I)), deaths:Fmt.num(Math.round(state.D)), reff:re.toFixed(2)
+    })+' '+arrow, re<1?'good':(re>1.5?'warn':''));
+  }
+
+  /* ---- 新闻 / 叙事 ---- */
+  function setNews(badge, text, flash){
+    const ticker = el('news-ticker');
+    el('news-badge').textContent = badge;
+    el('news-headline').textContent = text;
+    if(flash){ ticker.classList.remove('flash'); void ticker.offsetWidth; ticker.classList.add('flash'); }
+  }
+  function showNews(state){
+    const I=Math.round(state.I), D=Math.round(state.D), re=Domain.reff(state);
+    const key = Domain.newsKey(state);
+    const headline = t(key,{ city:t('city_'+state.city.id+'_name'),
+      I:Fmt.num(I), D:Fmt.num(D), reff:re.toFixed(2), pct:Math.round(state.I/Domain.N*100) });
+    setNews('📰 '+t('day_n',{d:state.day}), headline, true);
+    logRaw('📰 '+headline, '');
+  }
+  function initialNews(state){
+    setNews('📰 '+t('day_n',{d:0}), t('city_'+state.city.id+'_headline'), true);
+  }
+  function logStory(idx){ logRaw('🧑 '+t('story_'+idx), ''); }
+  function logMilestone(mark, day){
+    logRaw('✝ '+t('death_mark',{d:day, n:Fmt.num(mark)})+' — '+t('death_mark_'+(mark>=1000?'big':'small')), 'bad');
+  }
+  function announceEvent(kind, tone){
+    showEventToast(kind, tone);
+    setNews('📢', t('ev_'+kind), true);
+  }
+
+  /* ---- Toast ---- */
+  function showEventToast(kind, tone){
+    const wrap=el('toast-wrap');
+    const node=document.createElement('div');
+    node.className='toast '+(tone==='bad'?'bad':'event');
+    node.innerHTML=`<span class="t-ico">${tone==='bad'?'⚠️':'📣'}</span>
+      <div><div class="t-eyebrow">${t('ev_breaking')}</div>
+      <div class="t-name">${t('ev_'+kind+'_name')}</div>
+      <div class="t-body">${t('ev_'+kind)}</div></div>`;
+    wrap.appendChild(node);
+    setTimeout(()=>{ node.classList.add('out'); setTimeout(()=>node.remove(),350); }, 5200);
+  }
+  function showAchievement(id){
+    const a = Domain.ACHIEVEMENTS.find(x=>x.id===id);
+    const wrap = el('toast-wrap');
+    const node = document.createElement('div');
+    node.className='toast';
+    node.innerHTML = `<span class="t-ico">${a.ico}</span>
+      <div><div class="t-eyebrow">${t('achv_unlocked')}</div>
+      <div class="t-name">${t('ach_'+id+'_name')}</div></div>`;
+    wrap.appendChild(node);
+    setTimeout(()=>{ node.classList.add('out'); setTimeout(()=>node.remove(),350); }, 4200);
+  }
+  function toastText(ico, text){
+    const wrap=el('toast-wrap');
+    const node=document.createElement('div');
+    node.className='toast event';
+    node.innerHTML=`<span class="t-ico">${ico}</span><div><div class="t-name">${text}</div></div>`;
+    wrap.appendChild(node);
+    setTimeout(()=>{ node.classList.add('out'); setTimeout(()=>node.remove(),350); }, 5000);
+  }
+
+  /* ---- 干预卡片 ---- */
+  function renderInterventions(state){
+    const grid = el('iv-grid');
+    const lvl = unlockLevel();
+    const zero = state.mode==='zero';
+    grid.innerHTML='';
+    for(const iv of Domain.INTERVENTIONS){
+      if(iv.locked && !state.unlocked[iv.id]) continue;
+      if((iv.tier||0) > lvl) continue;
+      const node = document.createElement('div');
+      node.className='iv tip';
+      const isActive = iv.type==='cont' && state.active[iv.id];
+      const isUsed   = iv.type==='once' && state.used[iv.id];
+      const canAfford = state.budget >= iv.cost;
+      if(isActive) node.classList.add('active');
+      if(isUsed) node.classList.add('used');
+      if(isUsed || state.over || zero) node.classList.add(isUsed?'used':'disabled');
+      if(!isActive && !isUsed && !canAfford) node.classList.add('disabled');
+      const tag = iv.type==='cont'? t('tag_cont') : t('tag_once');
+      node.innerHTML = `
+        <div class="iv-head"><span class="ico">${iv.ico}</span>${I18n.ivName(iv.id)}</div>
+        <div class="iv-desc">${t('iv_'+iv.id+'_desc')}</div>
+        <div class="iv-cost">${Fmt.money(iv.cost)}</div>
+        <span class="iv-tag">${tag}</span>
+        <span class="tipbox">${t('iv_'+iv.id+'_tip')}</span>`;
+      node.onclick = ()=> svc && svc.toggleIntervention(iv.id);
+      grid.appendChild(node);
+    }
+  }
+  function announceIntervention(res){
+    if(res.kind==='off')      logRaw(t('iv_off',{name:I18n.ivName(res.iv.id), cost:Fmt.money(res.iv.cost)}), '');
+    else if(res.kind==='on')  logRaw('✅ '+t('iv_on',{name:I18n.ivName(res.iv.id), cost:Fmt.money(res.iv.cost)}), 'good');
+    else if(res.kind==='once'){
+      const e=res.eff;
+      if(e.type==='vaccine')       logRaw('💉 '+t('log_vaccine',{n:Fmt.num(Math.round(e.immun))}), 'good');
+      else if(e.type==='treatment')logRaw('🩺 '+t('log_treatment'), 'good');
+      else if(e.type==='research') logRaw('🔬 '+t('log_research'), 'good');
+    }
+  }
+
+  /* ---- 数字滚动 / 主渲染 ---- */
+  function rollNumber(node, to){
+    const from = parseInt((node.textContent||'0').replace(/[^0-9]/g,''))||0;
+    to = Math.round(to);
+    if(from===to){ node.textContent = Fmt.num(to); return; }
+    const steps=12; let i=0;
+    clearInterval(node._roll);
+    node._roll=setInterval(()=>{
+      i++; const v=Math.round(from+(to-from)*i/steps);
+      node.textContent=Fmt.num(v);
+      if(i>=steps){ clearInterval(node._roll); node.textContent=Fmt.num(to); }
+    },18);
+  }
+  function flashChart(){
+    document.querySelectorAll('.chart-wrap').forEach(w=>{
+      w.classList.remove('flash'); void w.offsetWidth; w.classList.add('flash');
+    });
+  }
+  function flashBudget(state){
+    el('m-budget').classList.add('low');
+    log('log_nofunds','bad');
+  }
+  function cssVar(v){ return getComputedStyle(document.documentElement).getPropertyValue(v).trim(); }
+  function render(state){
+    cur = state;
+    el('v-day').textContent = state.day;
+    el('v-cases').textContent = Fmt.num(Math.round(state.I));
+    rollNumber(el('v-deaths'), state.D);
+    el('v-atrisk').textContent = Fmt.num(Math.round(state.S + state.I));
+    el('v-budget').textContent = state.mode==='sandbox' ? '∞' : Fmt.money(Math.max(0,Math.round(state.budget)));
+
+    el('m-cases').classList.toggle('alarm', state.I>10000);
+    const lowBudget = state.mode!=='sandbox' && state.budget < state.startBudget*0.2;
+    el('m-budget').classList.toggle('low', lowBudget);
+    const bpct = state.mode==='sandbox' ? 100 : Math.max(0, Math.min(100, state.budget/state.startBudget*100));
+    const bfill = el('budget-fill');
+    bfill.style.width = bpct+'%';
+    bfill.style.background = bpct>50 ? 'var(--good)' : bpct>20 ? 'var(--warn)' : 'var(--bad)';
+
+    const sim7 = el('btn-sim7');
+    sim7.classList.toggle('urgent', !state.over && state.I>10000);
+    sim7.classList.toggle('calm',   !state.over && state.I>0 && state.I<500 && state.day>0);
+
+    el('tl-fill').style.width = (state.day/Domain.MAX_DAYS*100)+'%';
+
+    const re = Domain.reff(state);
+    el('v-reff').textContent = re.toFixed(2);
+    const knobPct = Math.min(100, (re/3)*100);
+    el('reff-knob').style.marginLeft = `calc(${knobPct}% - 1px)`;
+    const stEl = el('reff-status');
+    if(re<1.0){ stEl.textContent='▼ '+t('reff_conv'); stEl.style.color=cssVar('--good'); }
+    else if(re<=1.5){ stEl.textContent='→ '+t('reff_stable'); stEl.style.color=cssVar('--warn'); }
+    else { stEl.textContent='▲ '+t('reff_spread'); stEl.style.color=cssVar('--bad'); }
+
+    renderInterventions(state);
+  }
+
+  /* ---- 横幅 / 渐进解锁 / 城市卡片 ---- */
+  function updateScenarioBanner(state){
+    const id = state.scenario;
+    const banner = el('scenario-banner');
+    if(id==='standard'){ banner.classList.remove('show'); return; }
+    banner.classList.add('show');
+    el('sc-banner-ico').textContent = Domain.SCENARIOS[id].ico;
+    el('sc-banner-name').textContent = t('sc_'+id);
+    el('sc-banner-desc').textContent = t('sc_'+id+'_desc');
+  }
+  function applyUIGating(){
+    const lvl = unlockLevel();
+    el('daily-panel').style.display = lvl>=1 ? '' : 'none';
+    el('scenario').style.display    = lvl>=2 ? '' : 'none';
+    el('mode').style.display        = lvl>=2 ? '' : 'none';
+  }
+  function showCityCard(state){
+    const c = state.city, R0 = (state.baseBeta/Domain.GAMMA);
+    el('city-emoji').textContent = c.emoji;
+    el('city-name').textContent = t('city_'+c.id+'_name');
+    el('city-tag').textContent = '';
+    el('city-pop').textContent = Fmt.num(Domain.N);
+    el('city-trait').textContent = t('city_'+c.id+'_trait');
+    el('city-r0').textContent = R0.toFixed(2);
+    el('city-headline').textContent = t('city_'+c.id+'_headline');
+    el('city-overlay').classList.add('show');
+  }
+
+  /* ---- 语言 ---- */
+  function applyLang(state){
+    if(state) cur = state;
+    document.documentElement.lang = I18n.lang==='zh'?'zh-CN':'en';
+    document.querySelectorAll('[data-i18n]').forEach(node=>{
+      const k = node.getAttribute('data-i18n');
+      if(node.querySelector('.tipbox')){
+        const tip = node.querySelector('.tipbox');
+        node.childNodes[0].nodeValue = t(k)+' ';
+        tip.innerHTML = t('reff_tip');
+      } else {
+        node.textContent = t(k);
+      }
+    });
+    el('langToggle').textContent = I18n.lang==='zh' ? 'EN / 中' : '中 / EN';
+    charts.relabel();
+    if(cur && cur.scenario) updateScenarioBanner(cur);
+    if(cur) render(cur);
+  }
+
+  /* ---- 新局开始：所有开场 UI ---- */
+  function startGame(state, lvl, flags){
+    cur = state;
+    el('log-box').innerHTML='';
+    el('result-overlay').classList.remove('show');
+    document.body.classList.toggle('sandbox', state.mode==='sandbox');
+    applyLang(state);
+    applyUIGating();
+    render(state);
+    updateScenarioBanner(state);
+
+    const meta = flags.meta;
+    if(flags.dynOn && state.mode==='campaign' && (meta.dynBeta||0) > 0) log('dyn_harder','warn');
+    if(flags.dynOn && state.mode==='campaign' && (meta.highStreak||0) >= 2) toastText('💡', t('dyn_easier'));
+    if(state.mode==='sandbox') log('sandbox_note','');
+    if(state.mode==='zero')    log('zero_note','warn');
+    if(state.scenario!=='standard') logRaw('⚠ '+t('sc_'+state.scenario),'warn');
+
+    initialNews(state);
+    log('log_outbreak','warn',{ n:Fmt.num(Domain.I0), reff:Domain.reff(state).toFixed(2) });
+    if(state.mode!=='sandbox') showCityCard(state);
+  }
+
+  /* ---- 自动模式按钮态 ---- */
+  function setAuto(on){ el('btn-auto').classList.toggle('on', on); }
+
+  /* ---- 策略点评（表现层文案） ---- */
+  function buildReview(state, total, base){
+    const parts=[];
+    const lives = Math.round(base.D - state.D);
+    const activeCount = Domain.INTERVENTIONS.filter(iv=>iv.type==='cont'&&state.active[iv.id]).length
+                      + Domain.INTERVENTIONS.filter(iv=>iv.type==='once'&&state.used[iv.id]).length;
+    if(lives>0) parts.push(t('rev_lives',{n:Fmt.num(lives)}));
+    else parts.push(t('rev_nolives'));
+    if(activeCount===0) parts.push(t('rev_noiv'));
+    else if(state.used['vaccine']) parts.push(t('rev_vaccine'));
+    else parts.push(t('rev_someiv',{n:activeCount}));
+    const spentPct = (state.startBudget-state.budget)/state.startBudget;
+    if(spentPct>0.85) parts.push(t('rev_overspend'));
+    else if(spentPct<0.3 && total>=75) parts.push(t('rev_efficient'));
+    if(state.I>=1 && state.day>=Domain.MAX_DAYS) parts.push(t('rev_notcontained'));
+    return parts.join(' ');
+  }
+
+  /* ---- 结算面板 ---- */
+  function showResult(state, payload){
+    const { sc, rate, base, lives, potentialPct } = payload;
+    const sandbox = sc.sandbox;
+    el('r-ico').textContent = rate.ico;
+    el('r-title').textContent = t(rate.key);
+    el('r-score').textContent = sandbox ? '—' : sc.total;
+    el('r-sb-death').textContent = Math.round(sc.deathScore);
+    el('r-sb-budget').textContent = Math.round(sc.budgetScore);
+    el('r-sb-speed').textContent = Math.round(sc.speedScore);
+
+    el('r-cmp').innerHTML = `
+      <tr><td>${t('cmp_deaths')}</td><td>${Fmt.num(Math.round(state.D))}</td><td>${Fmt.num(Math.round(base.D))}</td></tr>
+      <tr><td>${t('cmp_recov')}</td><td>${Fmt.num(Math.round(state.R))}</td><td>${Fmt.num(Math.round(base.R))}</td></tr>
+      <tr><td>${t('cmp_peakday')}</td><td>${t('day_n',{d:state.peakDay})}</td><td>—</td></tr>
+      <tr><td>${t('cmp_spent')}</td><td>${sandbox?'∞':Fmt.money(state.startBudget-state.budget)}</td><td>¥0</td></tr>`;
+
+    const cityName = t('city_'+state.city.id+'_name');
+    let ending;
+    if(sandbox) ending = t('ending_sandbox');
+    else if(sc.total>=55) ending = t('ending_high',{day:state.day, city:cityName, x:Fmt.num(Math.round(state.D))});
+    else ending = t('ending_low',{city:cityName});
+    el('r-ending').textContent = ending;
+
+    el('r-review').textContent = buildReview(state, sc.total, base);
+
+    let cf;
+    if(sandbox) cf='';
+    else if(lives > base.D*0.5) cf = t('cf_good',{n:Fmt.num(lives)});
+    else if(state.peakDay>0 && !Domain.tookAnyAction(state)) cf = t('cf_earlier',{pct:potentialPct});
+    else cf = t('cf_late');
+    el('r-cf').textContent = cf;
+    el('r-cf').style.display = cf? 'block':'none';
+
+    const pct = Math.max(1, Math.min(99, sandbox? 50 : sc.total));
+    el('r-pct-txt').textContent = t('pct_text',{pct});
+    el('r-pct-fill').style.width = pct+'%';
+
+    const R0 = (state.baseBeta/Domain.GAMMA);
+    el('r-eq').textContent =
+`ΔS = -(β·S·I)/N
+ΔI =  (β·S·I)/N - γ·I
+ΔR =  γ·I·(1-CFR)
+ΔD =  γ·I·CFR
+
+β₀ = ${state.baseBeta.toFixed(3)}   γ = ${Domain.GAMMA}
+CFR₀ = ${(state.baseCfr*100).toFixed(2)}%   R₀ = β₀/γ = ${R0.toFixed(2)}`;
+    el('r-eq').classList.add('hidden');
+    el('r-eq-toggle').textContent = t('show_eq');
+
+    el('result-overlay').classList.add('show');
+  }
+
+  /* ---- 成就墙 ---- */
+  function renderAchModal(){
+    const owned = repo.loadAch();
+    const grid = el('ach-grid');
+    grid.innerHTML='';
+    let n=0;
+    for(const a of Domain.ACHIEVEMENTS){
+      const has = !!owned[a.id];
+      if(has) n++;
+      const node = document.createElement('div');
+      node.className = 'ach'+(has?'':' locked');
+      node.innerHTML = `<span class="ach-ico">${has?a.ico:'🔒'}</span>
+        <div><div class="ach-name">${t('ach_'+a.id+'_name')}</div>
+        <div class="ach-desc">${t('ach_'+a.id+'_desc')}</div></div>
+        ${has?'<span class="ach-done">✓</span>':''}`;
+      grid.appendChild(node);
+    }
+    el('ach-progress').textContent = t('achv_progress',{ n, total:Domain.ACHIEVEMENTS.length });
+  }
+
+  /* ---- 分享卡片（Canvas） ---- */
+  function shareResult(){
+    const state = cur; if(!state) return;
+    const W=720, H=420, dpr=window.devicePixelRatio||1;
+    const cv=document.createElement('canvas'); cv.width=W*dpr; cv.height=H*dpr;
+    const x=cv.getContext('2d'); x.scale(dpr,dpr);
+    const dark = document.documentElement.getAttribute('data-theme')!=='light';
+    const bg=dark?'#0f1117':'#ffffff', fg=dark?'#e8ecf4':'#1a1f2b', mut=dark?'#8b93a7':'#5a6376';
+    x.fillStyle=bg; x.fillRect(0,0,W,H);
+    x.fillStyle=fg; x.font='bold 26px sans-serif';
+    x.fillText('🦠 '+t('title'), 28, 46);
+    x.fillStyle=mut; x.font='13px sans-serif';
+    x.fillText(t('city_'+state.city.id+'_name')+' · '+t('mode_'+(state.mode==='zero'?'zero':state.mode)), 28, 70);
+    const score=el('r-score').textContent, title=el('r-title').textContent;
+    x.fillStyle=fg; x.font='bold 64px sans-serif'; x.fillText(score, 28, 150);
+    x.font='18px sans-serif'; x.fillText('/100  '+title, 130, 150);
+    x.font='14px sans-serif'; x.fillStyle=mut;
+    x.fillText(t('cmp_deaths')+': '+Fmt.num(Math.round(state.D))+'   '+t('cmp_peakday')+': '+t('day_n',{d:state.peakDay}), 28, 182);
+    const hist=state.history, n=hist.length, maxI=Math.max(...hist.map(h=>h.I),1);
+    const gx=28, gy=210, gw=W-56, gh=160;
+    x.strokeStyle=mut; x.globalAlpha=.3; x.beginPath(); x.moveTo(gx,gy+gh); x.lineTo(gx+gw,gy+gh); x.stroke(); x.globalAlpha=1;
+    const series=[['S','#4f8cff'],['I','#ff5e6c'],['R','#3ddc97']];
+    for(const [key,col] of series){
+      x.strokeStyle=col; x.lineWidth=2; x.beginPath();
+      const mx = key==='I'? maxI : Domain.N;
+      hist.forEach((h,i)=>{ const px=gx+gw*i/(n-1||1), py=gy+gh-(h[key]/mx)*gh; i?x.lineTo(px,py):x.moveTo(px,py); });
+      x.stroke();
+    }
+    x.fillStyle=mut; x.font='11px sans-serif';
+    x.fillText('S / I / R  ·  '+t('axis_day')+' 0–'+state.day, gx, gy+gh+18);
+    cv.toBlob(blob=>{
+      if(!blob) return;
+      const url=URL.createObjectURL(blob);
+      const a=document.createElement('a'); a.href=url; a.download='epidemic-commander.png'; a.click();
+      setTimeout(()=>URL.revokeObjectURL(url),2000);
+      const txt=t('share_text',{score, title, deaths:Fmt.num(Math.round(state.D))});
+      if(navigator.clipboard) navigator.clipboard.writeText(txt).catch(()=>{});
+    });
+  }
+
+  function readSettings(){
+    return { mode:el('mode').value, difficultyKey:el('difficulty').value, scenarioId:el('scenario').value };
+  }
+
+  /* ---- 绑定服务 + 装配 DOM 事件（组合根调用） ---- */
+  function bind(service){
+    svc = service;
+
+    el('btn-sim7').onclick  = ()=>svc.simulateDays(7);
+    el('btn-sim30').onclick = ()=>svc.simulateDays(30);
+    el('btn-peak').onclick  = ()=>svc.skipToPeak();
+    el('btn-auto').onclick  = ()=>svc.toggleAuto();
+    el('btn-reset').onclick = ()=>{ if(confirm(t('confirm_reset'))) svc.newGame(); };
+
+    el('difficulty').onchange = ()=>svc.newGame();
+    el('scenario').onchange   = ()=>svc.newGame();
+    el('mode').onchange       = ()=>svc.newGame();
+
+    el('city-start').onclick   = ()=>el('city-overlay').classList.remove('show');
+    el('city-overlay').onclick = (e)=>{ if(e.target.id==='city-overlay') e.target.classList.remove('show'); };
+
+    el('r-eq-toggle').onclick = ()=>{
+      const eq=el('r-eq'), hidden=eq.classList.toggle('hidden');
+      el('r-eq-toggle').textContent = hidden ? t('show_eq') : t('eq_hide');
+    };
+
+    el('achToggle').onclick   = ()=>{ renderAchModal(); el('ach-overlay').classList.add('show'); };
+    el('ach-close').onclick   = ()=>el('ach-overlay').classList.remove('show');
+    el('ach-ok').onclick      = ()=>el('ach-overlay').classList.remove('show');
+    el('ach-overlay').onclick = (e)=>{ if(e.target.id==='ach-overlay') e.target.classList.remove('show'); };
+    el('ach-reset').onclick   = ()=>{ if(confirm(t('achv_reset_confirm'))){ repo.saveAch({}); renderAchModal(); } };
+
+    // 动态难度开关
+    function reflectDyn(){
+      const on = repo.dynDiffOn();
+      const tg=el('dynToggle');
+      tg.style.opacity = on ? '1' : '.45';
+      el('dyn-ico').textContent = on ? '⚙️' : '🚫';
+      tg.title = t(on ? 'dyn_on_tip' : 'dyn_off_tip');
+    }
+    reflectDyn();
+    el('dynToggle').onclick = ()=>{
+      const next = !repo.dynDiffOn();
+      repo.setDynDiff(next);
+      reflectDyn();
+      toastText(next?'⚙️':'🚫', t(next?'dyn_on_msg':'dyn_off_msg'));
+      if(audio.enabled) audio.beep(660,60);
+    };
+
+    el('soundToggle').onclick = (e)=>{
+      const on = audio.toggle();
+      e.currentTarget.querySelector('span').textContent = on?'🔊':'🔇';
+      if(on) audio.beep(660,60);
+    };
+    el('themeToggle').onclick = ()=>{
+      const light = document.documentElement.getAttribute('data-theme')==='light';
+      if(light){ document.documentElement.removeAttribute('data-theme'); repo.setTheme('dark'); }
+      else { document.documentElement.setAttribute('data-theme','light'); repo.setTheme('light'); }
+      charts.retheme();
+    };
+    el('langToggle').onclick = ()=>{ I18n.toggle(); applyLang(cur); };
+
+    el('r-again').onclick = ()=>svc.newGame();
+    el('r-share').onclick = ()=>shareResult();
+    el('r-learn').onclick = ()=>el('edu-overlay').classList.add('show');
+    el('edu-close').onclick = ()=>el('edu-overlay').classList.remove('show');
+    el('edu-ok').onclick    = ()=>el('edu-overlay').classList.remove('show');
+    el('edu-overlay').onclick = (e)=>{ if(e.target.id==='edu-overlay') e.target.classList.remove('show'); };
+  }
+
+  // Presenter 端口（应用层通过这些方法回调视图）
+  return {
+    bind, readSettings, startGame, render, log, logRaw, logDayStatus,
+    showNews, initialNews, logStory, logMilestone, announceEvent, announceIntervention,
+    flashBudget, flashChart, showAchievement, toastText, setAuto, showResult,
+    showCityCard, updateScenarioBanner, applyUIGating, renderAchModal, shareResult, applyLang,
+    t,
+  };
+}
+
+
+/* ============================================================================
+   COMPOSITION ROOT  ·  组合根（装配依赖 → 注入 → 绑定 → 启动）
+   这是唯一允许"知道所有层"的地方。
+   ============================================================================ */
+window.addEventListener('DOMContentLoaded', ()=>{
+  // 1) 基础设施适配器 infrastructure adapters
+  const charts = createCharts();
+
+  // 2) 表现层视图 presentation view
+  const view = createView({ charts, audio:Audio, repo:Repo });
+
+  // 3) 应用层服务（注入端口）application service
+  const service = createGameService({ repo:Repo, view, audio:Audio, charts, rng:Rng, clock:Clock });
+
+  // 4) 绑定 + 启动
+  view.bind(service);
+  if(Repo.theme()==='light') document.documentElement.setAttribute('data-theme','light');
+  service.newGame();
+});
+
+</script>
+</body>
+</html>

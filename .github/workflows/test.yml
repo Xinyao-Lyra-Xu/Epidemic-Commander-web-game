@@ -1,0 +1,32 @@
+name: test
+
+# push 与 PR 到主分支时自动运行测试
+on:
+  push:
+    branches: [main, master]
+  pull_request:
+    branches: [main, master]
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        node-version: [18.x, 20.x, 22.x]   # node:test 需要 Node 18+
+    name: node ${{ matrix.node-version }}
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Set up Node ${{ matrix.node-version }}
+        uses: actions/setup-node@v4
+        with:
+          node-version: ${{ matrix.node-version }}
+
+      # 本项目零运行时依赖，仅用 Node 内置 node:test，无需 npm install。
+      - name: Validate inline HTML script
+        run: npm run check:html
+
+      - name: Run tests
+        run: npm test

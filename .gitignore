@@ -1,0 +1,28 @@
+# Dependencies (this project has none at runtime, but just in case)
+node_modules/
+package-lock.json
+
+# Node / test artifacts
+*.log
+npm-debug.log*
+.npm/
+coverage/
+.nyc_output/
+
+# Temp / scratch files used during development
+_*.js
+_*.txt
+*.bak
+*.tmp
+
+# Editor / OS
+.vscode/
+.idea/
+*.swp
+.DS_Store
+Thumbs.db
+desktop.ini
+
+# Build output (none currently)
+dist/
+build/

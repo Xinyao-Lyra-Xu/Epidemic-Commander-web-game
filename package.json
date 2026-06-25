@@ -1,0 +1,15 @@
+{
+  "name": "epidemic-commander",
+  "version": "1.0.0",
+  "description": "《流行病指挥官》Epidemic Commander — a single-file SIR-model strategy game (clean/onion architecture). The game itself is epidemic-commander.html; this package only wires up the test suites.",
+  "private": true,
+  "scripts": {
+    "start": "node serve.js",
+    "preview": "node serve.js",
+    "test": "node --test",
+    "test:domain": "node --test domain.test.js",
+    "test:service": "node --test service.test.js",
+    "check:html": "node check-html.js"
+  },
+  "license": "MIT"
+}
