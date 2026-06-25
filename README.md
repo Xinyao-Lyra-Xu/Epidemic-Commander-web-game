@@ -1,8 +1,7 @@
 # 🦠 流行病指挥官 · Epidemic Commander
 
-<!-- 把下面两个徽章里的 OWNER/REPO 替换成你的 GitHub 仓库（如 alice/epidemic-commander） -->
-[![test](https://github.com/OWNER/REPO/actions/workflows/test.yml/badge.svg)](https://github.com/OWNER/REPO/actions/workflows/test.yml)
-[![deploy-pages](https://github.com/OWNER/REPO/actions/workflows/deploy.yml/badge.svg)](https://github.com/OWNER/REPO/actions/workflows/deploy.yml)
+[![test](https://github.com/Xinyao-Lyra-Xu/Epidemic-Commander-web-game/actions/workflows/test.yml/badge.svg)](https://github.com/Xinyao-Lyra-Xu/Epidemic-Commander-web-game/actions/workflows/test.yml)
+[![deploy-pages](https://github.com/Xinyao-Lyra-Xu/Epidemic-Commander-web-game/actions/workflows/deploy.yml/badge.svg)](https://github.com/Xinyao-Lyra-Xu/Epidemic-Commander-web-game/actions/workflows/deploy.yml)
 [![license: MIT](https://img.shields.io/badge/license-MIT-blue.svg)](LICENSE)
 
 一款**单文件、纯前端**的 SIR 流行病学策略游戏。你扮演城市公共卫生负责人，在有限预算和 365 天内，用一系列干预措施控制疫情、减少死亡。游戏兼顾趣味与科普，全程**中英双语**可一键切换。
