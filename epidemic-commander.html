@@ -799,6 +799,21 @@ const I18N = {
     ach_comeback_name:'力挽狂澜', ach_comeback_desc:'峰值超过 30,000 仍拿到 55 分以上',
     ach_sandbox_name:'探索实验室', ach_sandbox_desc:'进入自由沙盒模式做一次实验',
     ach_killer_name:'零干预见证者', ach_killer_desc:'完成一局「零干预挑战」，直面自然结局',
+    ach_winter_name:'凛冬克星', ach_winter_desc:'在寒冬季节情景下得分 ≥ 70',
+    ach_metropolis_name:'都市守望者', ach_metropolis_desc:'在超大都市情景下得分 ≥ 70',
+    ach_escape_name:'追赶变异', ach_escape_desc:'在免疫逃逸株情景下得分 ≥ 70',
+    ach_combo_name:'组合拳', ach_combo_desc:'同时激活 4 种及以上持续型措施',
+    ach_novax_name:'无苗通关', ach_novax_desc:'全程不用疫苗仍拿到 80 分以上',
+    // 威胁等级（难度曲线）
+    threat_low:'低威胁', threat_mid:'中威胁', threat_high:'高威胁', threat_extreme:'极高威胁',
+    threat_briefing:'本局威胁等级：{tier}（起始 R₀ = {r0}）',
+    // 关卡剧情简报
+    sc_delta_story:'一名归国旅客带回了传播力更强的毒株，社区里的传播链正在悄悄拉长。',
+    sc_aging_story:'这是一座银发之城，养老院与社区医院的每一张床位都格外珍贵。',
+    sc_hesitancy_story:'网络上关于疫苗的谣言四起，排队接种的人比预期少了一半。',
+    sc_winter_story:'寒潮来袭，人群挤进暖气房与商场，急诊室的灯彻夜未熄。',
+    sc_metropolis_story:'两千万人在地铁与写字楼间川流不息，一次咳嗽都可能点燃一条传播链。',
+    sc_immune_escape_story:'实验室警报：新变异株能绕过大半疫苗保护，旧的剧本不再奏效。',
     // 模式 / 损失框架
     mode_campaign:'战役模式', mode_sandbox:'沙盒模式', mode_zero:'零干预挑战',
     atrisk_label:'仍处于危险中',
@@ -954,6 +969,21 @@ const I18N = {
     ach_comeback_name:'Against the Odds', ach_comeback_desc:'Score ≥ 55 despite a peak above 30,000',
     ach_sandbox_name:'The Lab', ach_sandbox_desc:'Run an experiment in free Sandbox mode',
     ach_killer_name:'Zero-Intervention Witness', ach_killer_desc:'Complete a Zero-Intervention run and face nature',
+    ach_winter_name:'Winter Breaker', ach_winter_desc:'Score ≥ 70 in the Winter Season scenario',
+    ach_metropolis_name:'City Watch', ach_metropolis_desc:'Score ≥ 70 in the Megacity scenario',
+    ach_escape_name:'Chasing the Variant', ach_escape_desc:'Score ≥ 70 in the Immune-escape scenario',
+    ach_combo_name:'Combo', ach_combo_desc:'Have 4 or more ongoing measures active at once',
+    ach_novax_name:'No-Vax Victory', ach_novax_desc:'Score ≥ 80 without ever using vaccination',
+    // Threat level (difficulty curve)
+    threat_low:'Low threat', threat_mid:'Moderate threat', threat_high:'High threat', threat_extreme:'Extreme threat',
+    threat_briefing:'Threat level: {tier} (starting R₀ = {r0})',
+    // Scenario story briefings
+    sc_delta_story:'A returning traveler brought back a more transmissible strain; chains of spread are quietly lengthening.',
+    sc_aging_story:'This is a silver-haired city — every bed in its care homes and clinics is precious.',
+    sc_hesitancy_story:'Rumors about vaccines flood the internet; the queues at clinics are half as long as hoped.',
+    sc_winter_story:'A cold snap drives crowds into heated rooms and malls; the ER lights stay on all night.',
+    sc_metropolis_story:'Twenty million people flow through subways and towers — a single cough can light a chain.',
+    sc_immune_escape_story:'Lab alert: the new variant slips past most vaccine protection. The old playbook no longer works.',
     // Modes / loss framing
     mode_campaign:'Campaign', mode_sandbox:'Sandbox', mode_zero:'Zero-Intervention',
     atrisk_label:'Still at risk',
@@ -1080,6 +1110,11 @@ const Domain = (function(){
     { id:'comeback', ico:'💪', cond:ctx=>ctx.state.peakI>30000 && ctx.score>=55 },
     { id:'sandbox',  ico:'🧪', cond:()=>false },
     { id:'killer',   ico:'☠️', cond:ctx=>ctx.state.mode==='zero' && (ctx.state.day>=MAX_DAYS || ctx.state.I<1) },
+    { id:'winter',   ico:'❄️', cond:ctx=>ctx.state.scenario==='winter' && ctx.score>=70 },
+    { id:'metropolis',ico:'🌆', cond:ctx=>ctx.state.scenario==='metropolis' && ctx.score>=70 },
+    { id:'escape',   ico:'🧫', cond:ctx=>ctx.state.scenario==='immune_escape' && ctx.score>=70 },
+    { id:'combo',    ico:'🧩', cond:ctx=>activeContCount(ctx.state)>=4 },
+    { id:'novax',    ico:'🚭', cond:ctx=>ctx.score>=80 && !ctx.state.used['vaccine'] },
   ];
 
   // ---- 实体工厂：创建一局新游戏的状态 entity factory ----
@@ -1300,6 +1335,16 @@ const Domain = (function(){
   function tookAnyAction(s){
     return INTERVENTIONS.some(iv=>(iv.type==='cont'&&s.active[iv.id])||(iv.type==='once'&&s.used[iv.id]));
   }
+  // 威胁等级（难度曲线可视化）：按本局起始 R₀ = baseBeta/γ 分档
+  function threatLevel(s){
+    const r0 = s.baseBeta / GAMMA;
+    let tier;
+    if(r0 < 2)      tier = 'low';
+    else if(r0 < 3) tier = 'mid';
+    else if(r0 < 4) tier = 'high';
+    else            tier = 'extreme';
+    return { tier, r0 };
+  }
   function evaluateAchievements(ctx){
     const ids=[];
     for(const a of ACHIEVEMENTS){ try{ if(a.cond(ctx)) ids.push(a.id); }catch(e){} }
@@ -1310,7 +1355,7 @@ const Domain = (function(){
     N, I0, GAMMA, MAX_DAYS, DIFF, SCENARIOS, INTERVENTIONS, CITIES, STORY_COUNT, DEATH_MARKS, ACHIEVEMENTS,
     createState, currentParams, reff, activeContCount, step, rollEvents,
     applyIntervention, projectRun, baselineRun, earlyIsolationRun,
-    score, rating, newsKey, pickStoryIdx, evaluateAchievements, tookAnyAction,
+    score, rating, newsKey, pickStoryIdx, evaluateAchievements, tookAnyAction, threatLevel,
   };
 })();
 
@@ -1865,12 +1910,14 @@ function createView(deps){
   }
   function showCityCard(state){
     const c = state.city, R0 = (state.baseBeta/Domain.GAMMA);
+    const threat = Domain.threatLevel(state);
     el('city-emoji').textContent = c.emoji;
     el('city-name').textContent = t('city_'+c.id+'_name');
     el('city-tag').textContent = '';
     el('city-pop').textContent = Fmt.num(Domain.N);
     el('city-trait').textContent = t('city_'+c.id+'_trait');
-    el('city-r0').textContent = R0.toFixed(2);
+    // 难度曲线：R₀ 旁标注威胁等级
+    el('city-r0').textContent = `${R0.toFixed(2)} · ${t('threat_'+threat.tier)}`;
     el('city-headline').textContent = t('city_'+c.id+'_headline');
     el('city-overlay').classList.add('show');
   }
@@ -1911,7 +1958,14 @@ function createView(deps){
     if(flags.dynOn && state.mode==='campaign' && (meta.highStreak||0) >= 2) toastText('💡', t('dyn_easier'));
     if(state.mode==='sandbox') log('sandbox_note','');
     if(state.mode==='zero')    log('zero_note','warn');
-    if(state.scenario!=='standard') logRaw('⚠ '+t('sc_'+state.scenario),'warn');
+    // 关卡剧情：非标准情景给一段简短的剧情简报
+    if(state.scenario!=='standard'){
+      logRaw('⚠ '+t('sc_'+state.scenario),'warn');
+      logRaw('📕 '+t('sc_'+state.scenario+'_story'),'');
+    }
+    // 难度曲线：开场播报本局威胁等级
+    const threat = Domain.threatLevel(state);
+    logRaw('🎚 '+t('threat_briefing',{ tier:t('threat_'+threat.tier), r0:threat.r0.toFixed(2) }),'');
 
     initialNews(state);
     log('log_outbreak','warn',{ n:Fmt.num(Domain.I0), reff:Domain.reff(state).toFixed(2) });
