@@ -83,6 +83,21 @@ test('createState — 情景修正 CFR 与疫苗免疫比例', () => {
   assert.equal(newState({ scenario:'standard' }).vaxFrac, 0.20);
 });
 
+test('createState — 新增情景：winter / metropolis / immune_escape', () => {
+  const city = 1.15;   // FIXED → tourist betaMul，cfrMul 1.00
+  // winter β×1.3, CFR×1.15
+  const w = newState({ scenario:'winter' });
+  assert.ok(Math.abs(w.baseBeta - 0.30*1.3*city) < 1e-9);
+  assert.ok(Math.abs(w.baseCfr - 0.008*1.15*1.00) < 1e-12);
+  // metropolis β×1.45
+  const m = newState({ scenario:'metropolis' });
+  assert.ok(Math.abs(m.baseBeta - 0.30*1.45*city) < 1e-9);
+  // immune_escape β×1.1 且疫苗只免疫 10%
+  const ie = newState({ scenario:'immune_escape' });
+  assert.ok(Math.abs(ie.baseBeta - 0.30*1.1*city) < 1e-9);
+  assert.equal(ie.vaxFrac, 0.10);
+});
+
 test('currentParams — 措施乘法叠加 + 民众抵制惩罚 + 临时事件', () => {
   const s = newState();
   // 无干预 → 基础值

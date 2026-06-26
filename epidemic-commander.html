@@ -159,11 +159,36 @@
     .chart-wrap{height:280px}
     header h1{font-size:17px}
   }
+  /* ===== 移动端体验微调 mobile tweaks ===== */
+  @media(max-width:560px){
+    /* 头部控件占满整行、便于点按；语言键靠右 */
+    header{padding:12px 14px;gap:10px}
+    .head-spacer{display:none}
+    .ctrl-group{width:100%;justify-content:flex-start}
+    /* 表单控件 ≥16px，避免 iOS 聚焦时自动放大页面 */
+    .selbox,select{font-size:16px;padding:9px 11px}
+    .toggle{padding:9px 12px;font-size:14px}
+    /* 触控目标更大 */
+    .btn{padding:13px 14px;min-height:46px}
+    .btn.primary{padding:15px;font-size:16px}
+    .iv{min-height:92px;padding:12px}
+    /* 提示气泡改为底部整条浮现，不再遮挡顶部控件 */
+    .toast-wrap{top:auto;bottom:12px;left:10px;right:10px;align-items:stretch}
+    .toast{min-width:0;max-width:none;width:100%}
+    /* 触屏没有 hover：把措施 tooltip 收起，避免误触卡住 */
+    .tip .tipbox{display:none}
+    /* 图表略矮，给操作区让位 */
+    .chart-wrap{height:240px}
+    .chart-wrap.small{height:150px}
+    .news-ticker{font-size:12px}
+  }
   @media(max-width:430px){
     .wrap{padding:10px}
     .metrics{grid-template-columns:1fr 1fr}
     .iv-grid{grid-template-columns:1fr 1fr}
     .modal{padding:18px}
+    .modal .score{font-size:46px}
+    .modal-actions .btn{min-width:0;flex:1 1 100%}
   }
   /* SCENARIO BANNER */
   .scenario-banner{display:none;align-items:center;gap:9px;margin-top:14px;
@@ -294,6 +319,9 @@
         <option value="delta" data-i18n="sc_delta">德尔塔变异株</option>
         <option value="aging" data-i18n="sc_aging">老龄化城市</option>
         <option value="hesitancy" data-i18n="sc_hesitancy">疫苗犹豫</option>
+        <option value="winter" data-i18n="sc_winter">寒冬季节</option>
+        <option value="metropolis" data-i18n="sc_metropolis">超大都市</option>
+        <option value="immune_escape" data-i18n="sc_immune_escape">免疫逃逸株</option>
       </select>
       <div class="toggle" id="achToggle" title=""><span>🏆</span><span data-i18n="achv">成就</span></div>
       <div class="toggle" id="dynToggle" title=""><span id="dyn-ico">⚙️</span><span data-i18n="dyndiff">动态难度</span></div>
@@ -749,9 +777,13 @@ const I18N = {
     confirm_reset:'确定要重新开始吗？当前进度将丢失。',
     // 情景模式
     sc_standard:'标准情景', sc_delta:'德尔塔变异株', sc_aging:'老龄化城市', sc_hesitancy:'疫苗犹豫',
+    sc_winter:'寒冬季节', sc_metropolis:'超大都市', sc_immune_escape:'免疫逃逸株',
     sc_delta_desc:'变异株传播力更强：β 提升约 50%，疫情来势更猛。',
     sc_aging_desc:'人口老龄化：病死率 CFR 约为常态的 2.2 倍，每个病例更危险。',
     sc_hesitancy_desc:'公众疫苗犹豫：疫苗接种仅能免疫 10% 易感人口（常态为 20%）。',
+    sc_winter_desc:'寒冬季节：人群转入室内、医疗系统承压，β 升约 30%、病死率升约 15%。',
+    sc_metropolis_desc:'超大都市：人口密度极高、通勤密集，β 升约 45%，是对传播控制的极限考验。',
+    sc_immune_escape_desc:'免疫逃逸变异株：疫苗仅能免疫 10% 易感人口，且 β 略升 10%，逼你重新规划疫苗策略。',
     // 成就
     achv:'成就', achv_title:'🏆 成就', achv_progress:'已解锁 {n} / {total}',
     achv_reset:'清空记录', achv_reset_confirm:'确定清空所有成就记录？', achv_unlocked:'成就解锁',
@@ -900,9 +932,13 @@ const I18N = {
     confirm_reset:'Restart the game? Current progress will be lost.',
     // Scenarios
     sc_standard:'Standard', sc_delta:'Delta Variant', sc_aging:'Aging City', sc_hesitancy:'Vaccine Hesitancy',
+    sc_winter:'Winter Season', sc_metropolis:'Megacity', sc_immune_escape:'Immune-escape Variant',
     sc_delta_desc:'A more transmissible variant: β is ~50% higher, so the outbreak hits harder.',
     sc_aging_desc:'An aging population: the fatality rate (CFR) is ~2.2× normal — every case is deadlier.',
     sc_hesitancy_desc:'Public vaccine hesitancy: vaccination only immunizes 10% of susceptibles (vs 20% normally).',
+    sc_winter_desc:'Winter: people move indoors and hospitals strain — β ~30% higher and fatality ~15% higher.',
+    sc_metropolis_desc:'Megacity: extreme density and heavy commuting push β ~45% higher — the ultimate test of containment.',
+    sc_immune_escape_desc:'Immune-escape variant: vaccines immunize only 10% of susceptibles and β rises ~10% — rethink your vaccine strategy.',
     // Achievements
     achv:'Achievements', achv_title:'🏆 Achievements', achv_progress:'Unlocked {n} / {total}',
     achv_reset:'Reset', achv_reset_confirm:'Clear all achievement records?', achv_unlocked:'Achievement Unlocked',
@@ -999,10 +1035,13 @@ const Domain = (function(){
   };
   // 情景修正（叠加在难度之上）scenario modifiers
   const SCENARIOS = {
-    standard:  { ico:'🏙️', betaMul:1.0, cfrMul:1.0, vaxFrac:0.20 },
-    delta:     { ico:'🧬', betaMul:1.5, cfrMul:1.0, vaxFrac:0.20 },
-    aging:     { ico:'👵', betaMul:1.0, cfrMul:2.2, vaxFrac:0.20 },
-    hesitancy: { ico:'🚫', betaMul:1.0, cfrMul:1.0, vaxFrac:0.10 },
+    standard:      { ico:'🏙️', betaMul:1.0,  cfrMul:1.0, vaxFrac:0.20 },
+    delta:         { ico:'🧬', betaMul:1.5,  cfrMul:1.0, vaxFrac:0.20 },
+    aging:         { ico:'👵', betaMul:1.0,  cfrMul:2.2, vaxFrac:0.20 },
+    hesitancy:     { ico:'🚫', betaMul:1.0,  cfrMul:1.0, vaxFrac:0.10 },
+    winter:        { ico:'❄️', betaMul:1.3,  cfrMul:1.15, vaxFrac:0.20 }, // 寒冬：室内聚集 + 医疗承压
+    metropolis:    { ico:'🌆', betaMul:1.45, cfrMul:1.0, vaxFrac:0.20 },  // 超大都市：极高密度
+    immune_escape: { ico:'🧫', betaMul:1.1,  cfrMul:1.0, vaxFrac:0.10 },  // 免疫逃逸株：疫苗效果腰斩
   };
   // 干预措施（tier = 渐进解锁层级）interventions
   const INTERVENTIONS = [
