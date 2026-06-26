@@ -53,6 +53,7 @@ function makeRig(opts={}){
     flashBudget: rec('view.flashBudget'),
     flashChart: rec('view.flashChart'),
     showAchievement: rec('view.showAchievement'),
+    showEasterEgg: rec('view.showEasterEgg'),
     toastText: rec('view.toastText'),
     setAuto: rec('view.setAuto'),
     showResult: rec('view.showResult'),
@@ -82,6 +83,8 @@ function makeRig(opts={}){
     theme: ()=> null, setTheme: rec('repo.setTheme'),
     saveScore: rec('repo.saveScore'),
     updateMetaAfterGame: rec('repo.updateMetaAfterGame'),
+    eggDone: ()=> opts.eggDone || false,
+    markEgg: rec('repo.markEgg'),
   };
   const charts = { reset: rec('charts.reset'), update: rec('charts.update'), retheme: rec('charts.retheme'), relabel: rec('charts.relabel') };
   let timerFn = null;
@@ -146,6 +149,32 @@ test('编排：turningpoint 事件 → audio.sfx + 解锁 below1 成就', () => 
   assert.ok(has(tail, 'repo.saveAch'), '成就应被持久化');
   assert.ok(has(tail, 'audio.beep', 990, 120), '解锁音效');
   assert.equal(s.everBelow1, true);
+});
+
+test('成就彩蛋：集齐 ≥80% 时触发一次 showEasterEgg + markEgg', () => {
+  // 预置 13 个成就（不含 below1），再解锁第 14 个 → 达到 ceil(17*0.8)=14
+  const preset = {};
+  ['flatten','lowdeath','frugal','expert','delta','aging','persuade',
+   'speedrun','comeback','sandbox','killer','winter','metropolis'].forEach(id => preset[id]=1);
+  const rig = freshGame({ ach: preset });
+  const s = rig.service.getState();
+  s.baseBeta = 0.001; s.everBelow1 = false;   // 制造拐点 → 解锁 below1（第 14 个）
+  rig.service.simulateDays(1);
+  const tail = rig.tail();
+  assert.ok(has(tail, 'view.showAchievement', 'below1'));
+  assert.ok(has(tail, 'view.showEasterEgg'), '达到 80% 应触发彩蛋');
+  assert.ok(has(tail, 'repo.markEgg'), '彩蛋应被持久化（只触发一次）');
+});
+
+test('成就彩蛋：已触发过则不再重复', () => {
+  const preset = {};
+  ['flatten','lowdeath','frugal','expert','delta','aging','persuade',
+   'speedrun','comeback','sandbox','killer','winter','metropolis'].forEach(id => preset[id]=1);
+  const rig = freshGame({ ach: preset, eggDone: true });   // 已触发
+  const s = rig.service.getState();
+  s.baseBeta = 0.001; s.everBelow1 = false;
+  rig.service.simulateDays(1);
+  assert.ok(!has(rig.tail(), 'view.showEasterEgg'), '已触发过不应再弹彩蛋');
 });
 
 test('编排：死亡里程碑事件 → view.logMilestone + audio.sfx(milestone)', () => {

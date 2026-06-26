@@ -305,6 +305,16 @@ test('threatLevel — 起始 R₀ 分档（难度曲线）', () => {
   assert.ok(Math.abs(mk(0.30).r0 - 3.0) < 1e-9);
 });
 
+test('controlR — 当前 β/γ 随干预实时下降（实时威胁条数据源）', () => {
+  const s = newState();
+  const before = Domain.controlR(s);                 // = baseBeta / 0.10
+  assert.ok(Math.abs(before - s.baseBeta/Domain.GAMMA) < 1e-9);
+  Domain.applyIntervention(s, 'mask');               // β ×0.80
+  const after = Domain.controlR(s);
+  assert.ok(after < before, '激活措施后受控传播力应下降');
+  assert.ok(Math.abs(after - before*0.80) < 1e-9);
+});
+
 test('newsKey — 按疫情态势选择语义键', () => {
   const early = newState(); early.day = 10;
   assert.equal(Domain.newsKey(early), 'news_early');

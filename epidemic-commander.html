@@ -67,6 +67,16 @@
     background:linear-gradient(90deg,var(--good) 0%,var(--warn) 50%,var(--bad) 100%)}
   .reff-bar .knob{height:100%;width:2px;background:var(--text);transform:translateX(0)}
   .reff-status{font-size:12px;margin-top:7px;font-weight:600}
+  /* 实时威胁条 live threat bar */
+  .threat{margin-top:12px;background:var(--panel-2);border:1px solid var(--border);
+    border-radius:11px;padding:11px 12px}
+  .threat-top{display:flex;justify-content:space-between;align-items:baseline}
+  .threat-top .name{font-size:12px;color:var(--muted);cursor:help}
+  .threat-top .lvl{font-family:var(--mono);font-size:14px;font-weight:800}
+  .threat-bar{height:8px;border-radius:5px;margin-top:9px;position:relative;
+    background:linear-gradient(90deg,var(--good) 0%,var(--warn) 45%,#ff8c42 72%,var(--bad) 100%)}
+  .threat-bar .knob{position:absolute;top:-2px;bottom:-2px;width:2px;background:var(--text);
+    box-shadow:0 0 4px rgba(0,0,0,.5);transition:margin-left .3s}
   /* INTERVENTIONS */
   .iv-grid{display:grid;grid-template-columns:1fr 1fr;gap:9px}
   .iv{background:var(--panel-2);border:1.5px solid var(--border);border-radius:11px;
@@ -224,6 +234,12 @@
   .toast.event .t-eyebrow{color:var(--warn)}
   .toast.bad{border-color:var(--bad);border-left-color:var(--bad)}
   .toast.bad .t-eyebrow{color:var(--bad)}
+  /* 彩蛋 toast（金色）easter-egg toast */
+  .toast.legend{border-color:#f5c542;border-left-color:#f5c542;
+    background:linear-gradient(135deg,var(--panel),rgba(245,197,66,.10))}
+  .toast.legend .t-eyebrow{color:#f5c542}
+  @keyframes hueSpin{from{filter:hue-rotate(0deg)}to{filter:hue-rotate(360deg)}}
+  header h1.celebrate .em{display:inline-block;animation:hueSpin 1.2s linear 3}
   .toast .t-body{font-size:11.5px;color:var(--muted);margin-top:2px;max-width:240px}
 
   /* ===== 具身认知：交互物理感 Embodied interaction physics ===== */
@@ -390,6 +406,17 @@
           </div>
           <div class="reff-bar"><div class="reff-mark"></div><div class="knob" id="reff-knob"></div></div>
           <div class="reff-status" id="reff-status"></div>
+        </div>
+
+        <!-- 实时威胁等级（难度曲线）：随干预实时变化的 β/γ -->
+        <div class="threat">
+          <div class="threat-top">
+            <span class="name tip" data-i18n="threat_name">威胁等级
+              <span class="tipbox" data-i18n="threat_tip">基于当前受控传播力 β/γ（不含易感衰减）。它直接反映你的干预把传播压到了什么程度，激活措施即刻下降。</span>
+            </span>
+            <span class="lvl" id="v-threat">高威胁</span>
+          </div>
+          <div class="threat-bar"><div class="knob" id="threat-knob"></div></div>
         </div>
       </div>
 
@@ -807,6 +834,9 @@ const I18N = {
     // 威胁等级（难度曲线）
     threat_low:'低威胁', threat_mid:'中威胁', threat_high:'高威胁', threat_extreme:'极高威胁',
     threat_briefing:'本局威胁等级：{tier}（起始 R₀ = {r0}）',
+    threat_name:'威胁等级',
+    threat_tip:'基于当前受控传播力 β/γ（不含易感衰减）。它直接反映你的干预把传播压到了什么程度，激活措施即刻下降。',
+    egg_title:'隐藏彩蛋', egg_msg:'你已集齐 {have}/{total} 个成就，解锁隐藏荣誉——传奇指挥官！🎉',
     // 关卡剧情简报
     sc_delta_story:'一名归国旅客带回了传播力更强的毒株，社区里的传播链正在悄悄拉长。',
     sc_aging_story:'这是一座银发之城，养老院与社区医院的每一张床位都格外珍贵。',
@@ -977,6 +1007,9 @@ const I18N = {
     // Threat level (difficulty curve)
     threat_low:'Low threat', threat_mid:'Moderate threat', threat_high:'High threat', threat_extreme:'Extreme threat',
     threat_briefing:'Threat level: {tier} (starting R₀ = {r0})',
+    threat_name:'Threat level',
+    threat_tip:'Based on the current controlled transmissibility β/γ (excluding susceptible depletion). It shows how far your measures have pushed spread down — it drops the moment you activate a measure.',
+    egg_title:'Easter Egg', egg_msg:'You\'ve collected {have}/{total} achievements — hidden honor unlocked: Legendary Commander! 🎉',
     // Scenario story briefings
     sc_delta_story:'A returning traveler brought back a more transmissible strain; chains of spread are quietly lengthening.',
     sc_aging_story:'This is a silver-haired city — every bed in its care homes and clinics is precious.',
@@ -1335,16 +1368,17 @@ const Domain = (function(){
   function tookAnyAction(s){
     return INTERVENTIONS.some(iv=>(iv.type==='cont'&&s.active[iv.id])||(iv.type==='once'&&s.used[iv.id]));
   }
-  // 威胁等级（难度曲线可视化）：按本局起始 R₀ = baseBeta/γ 分档
-  function threatLevel(s){
-    const r0 = s.baseBeta / GAMMA;
-    let tier;
-    if(r0 < 2)      tier = 'low';
-    else if(r0 < 3) tier = 'mid';
-    else if(r0 < 4) tier = 'high';
-    else            tier = 'extreme';
-    return { tier, r0 };
+  // 威胁分档（难度曲线）：把一个传播力指标 R 映射到四档
+  function tierOf(r){
+    if(r < 2)      return 'low';
+    else if(r < 3) return 'mid';
+    else if(r < 4) return 'high';
+    else           return 'extreme';
   }
+  // 本局起始威胁：按起始 R₀ = baseBeta/γ 分档
+  function threatLevel(s){ const r0 = s.baseBeta / GAMMA; return { tier:tierOf(r0), r0 }; }
+  // 当前受控传播力 = β_当前/γ_当前（随干预实时变化，不含易感衰减；用于实时威胁条）
+  function controlR(s){ const p = currentParams(s); return p.beta / p.gamma; }
   function evaluateAchievements(ctx){
     const ids=[];
     for(const a of ACHIEVEMENTS){ try{ if(a.cond(ctx)) ids.push(a.id); }catch(e){} }
@@ -1355,7 +1389,8 @@ const Domain = (function(){
     N, I0, GAMMA, MAX_DAYS, DIFF, SCENARIOS, INTERVENTIONS, CITIES, STORY_COUNT, DEATH_MARKS, ACHIEVEMENTS,
     createState, currentParams, reff, activeContCount, step, rollEvents,
     applyIntervention, projectRun, baselineRun, earlyIsolationRun,
-    score, rating, newsKey, pickStoryIdx, evaluateAchievements, tookAnyAction, threatLevel,
+    score, rating, newsKey, pickStoryIdx, evaluateAchievements, tookAnyAction,
+    threatLevel, tierOf, controlR,
   };
 })();
 
@@ -1440,6 +1475,8 @@ const Repo = (function(){
     setDynDiff(v){ try{ localStorage.setItem('ec_dyndiff', v?'on':'off'); }catch(e){} },
     theme(){ try{ return localStorage.getItem('ec_theme'); }catch(e){ return null; } },
     setTheme(v){ try{ localStorage.setItem('ec_theme', v); }catch(e){} },
+    eggDone(){ try{ return localStorage.getItem('ec_egg')==='1'; }catch(e){ return false; } },
+    markEgg(){ try{ localStorage.setItem('ec_egg','1'); }catch(e){} },
     // 排行榜 + 杀手型「最高单日新增」
     saveScore(total, sandbox, maxDaily, diffKey){
       try{
@@ -1593,6 +1630,18 @@ function createGameService(ports){
     repo.saveAch(owned);
     view.showAchievement(id);
     audio.beep(990,120);
+    maybeEgg();
+  }
+  // 成就总进度里程碑：集齐 ≥80% 触发一次隐藏彩蛋
+  function maybeEgg(){
+    if(repo.eggDone()) return;
+    const have = Object.keys(repo.loadAch()).length;
+    const total = Domain.ACHIEVEMENTS.length;
+    if(have >= Math.ceil(total * 0.8)){
+      repo.markEgg();
+      view.showEasterEgg(have, total);
+      audio.sfx('turningpoint');
+    }
   }
 
   // 分发一天产生的领域事件
@@ -1794,6 +1843,20 @@ function createView(deps){
     wrap.appendChild(node);
     setTimeout(()=>{ node.classList.add('out'); setTimeout(()=>node.remove(),350); }, 5000);
   }
+  // 成就 80% 隐藏彩蛋：金色 toast + 标题彩虹闪烁 + 日志
+  function showEasterEgg(have, total){
+    const wrap=el('toast-wrap');
+    const node=document.createElement('div');
+    node.className='toast legend';
+    node.innerHTML=`<span class="t-ico">🥚</span>
+      <div><div class="t-eyebrow">${t('egg_title')}</div>
+      <div class="t-name">${t('egg_msg',{ have, total })}</div></div>`;
+    wrap.appendChild(node);
+    setTimeout(()=>{ node.classList.add('out'); setTimeout(()=>node.remove(),350); }, 8000);
+    const h1=document.querySelector('header h1');
+    if(h1){ h1.classList.remove('celebrate'); void h1.offsetWidth; h1.classList.add('celebrate'); }
+    logRaw('🥚 '+t('egg_msg',{ have, total }), 'good');
+  }
 
   /* ---- 干预卡片 ---- */
   function renderInterventions(state){
@@ -1888,6 +1951,15 @@ function createView(deps){
     if(re<1.0){ stEl.textContent='▼ '+t('reff_conv'); stEl.style.color=cssVar('--good'); }
     else if(re<=1.5){ stEl.textContent='→ '+t('reff_stable'); stEl.style.color=cssVar('--warn'); }
     else { stEl.textContent='▲ '+t('reff_spread'); stEl.style.color=cssVar('--bad'); }
+
+    // 实时威胁条：随干预变化的 β/γ（难度曲线）
+    const ctR = Domain.controlR(state);
+    const tier = Domain.tierOf(ctR);
+    const tierColor = { low:'var(--good)', mid:'var(--warn)', high:'#ff8c42', extreme:'var(--bad)' }[tier];
+    const lvlEl = el('v-threat');
+    lvlEl.textContent = t('threat_'+tier);
+    lvlEl.style.color = tierColor;
+    el('threat-knob').style.marginLeft = `calc(${Math.min(100,(ctR/5)*100)}% - 1px)`;
 
     renderInterventions(state);
   }
@@ -2180,7 +2252,7 @@ CFR₀ = ${(state.baseCfr*100).toFixed(2)}%   R₀ = β₀/γ = ${R0.toFixed(2)}
   return {
     bind, readSettings, startGame, render, log, logRaw, logDayStatus,
     showNews, initialNews, logStory, logMilestone, announceEvent, announceIntervention,
-    flashBudget, flashChart, showAchievement, toastText, setAuto, showResult,
+    flashBudget, flashChart, showAchievement, toastText, showEasterEgg, setAuto, showResult,
     showCityCard, updateScenarioBanner, applyUIGating, renderAchModal, shareResult, applyLang,
     t,
   };
